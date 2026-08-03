@@ -1,14 +1,28 @@
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase';
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
-export const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2026-04-22.dahlia',
-});
+// Built on first use, never at import time.
+//
+// `new Stripe('')` throws "Neither apiKey nor config.authenticator provided",
+// and module scope runs during `next build` — where STRIPE_SECRET_KEY is not
+// present — so constructing here failed the Vercel build for every route that
+// transitively imported this file.
+let _stripe: Stripe | null = null;
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+export function getStripe(): Stripe {
+  if (!_stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY missing');
+    }
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2026-04-22.dahlia',
+    });
+  }
+  return _stripe;
+}
+
+// supabaseAdmin is already a lazy Proxy — see src/lib/supabase.ts.
+const supabase = supabaseAdmin;
 
 export const PLAN_TIERS = {
   starter: {
@@ -49,7 +63,7 @@ export async function getOrCreateStripeCustomer(email: string, client_id: string
     return client.stripe_customer_id;
   }
 
-  const customer = await stripe.customers.create({
+  const customer = await getStripe().customers.create({
     email,
     metadata: {
       client_id,

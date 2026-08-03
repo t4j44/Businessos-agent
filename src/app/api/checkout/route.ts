@@ -1,6 +1,6 @@
 import { createRouteClient } from '@/lib/supabase-route';
 import { NextResponse } from 'next/server';
-import { stripe, getOrCreateStripeCustomer, PLAN_TIERS } from '@/lib/stripe';
+import { getStripe, getOrCreateStripeCustomer, PLAN_TIERS } from '@/lib/stripe';
 
 export async function POST(req: Request) {
   try {
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ checkout_url: '/dashboard/billing?mock=success' });
     }
 
-    const checkoutSession = await stripe.checkout.sessions.create({
+    const checkoutSession = await getStripe().checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
       line_items: [

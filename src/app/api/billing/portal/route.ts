@@ -1,6 +1,6 @@
 import { createRouteClient } from '@/lib/supabase-route';
 import { NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { getStripe } from '@/lib/stripe';
 
 export async function POST(req: Request) {
   try {
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: '/dashboard/billing?portal=mock' });
     }
 
-    const portalSession = await stripe.billingPortal.sessions.create({
+    const portalSession = await getStripe().billingPortal.sessions.create({
       customer: client.stripe_customer_id,
       return_url: `${req.headers.get('origin')}/dashboard/billing`,
     });
