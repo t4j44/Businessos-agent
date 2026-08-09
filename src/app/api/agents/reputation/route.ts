@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { callAI, MODELS, parseJSON } from '@/lib/ai';
 import { getClientContext, supabaseAdmin } from '@/lib/supabase';
 import { logAgentRun } from '@/lib/log';
-import { retrieveContext } from '@/lib/voyage';
+import { retrieveContext, storeRAGChunk } from '@/lib/embeddings';
+import { findOrCreateContact, logInteraction, updateContactScore } from '@/lib/contacts';
 
 const NEUTRAL_TONE =
   'professional, courteous, and clear — like a well-run business responding respectfully.';
@@ -11,6 +12,7 @@ function buildSystemPrompt(
   companyName: string,
   toneDescription: string,
   voiceContext = '',
+  productContext = '',
 ): string {
   return `You are the reputation manager for ${companyName}. Brand tone: ${toneDescription}.
 ${
@@ -18,21 +20,22 @@ ${
     ? `\nReal examples of how this brand writes — match this voice closely:\n"""\n${voiceContext}\n"""\n`
     : ''
 }
-
-For POSITIVE reviews (4-5 stars): at least 50 words, reference SPECIFIC details from the review, sound like the owner wrote it personally, warm and genuine, thank them for what they mentioned.
-
-For NEGATIVE reviews (1-3 stars): never defensive, acknowledge the SPECIFIC complaint, take responsibility, offer a path to resolution, 50-80 words, end with a direct contact method.
-
-FORBIDDEN phrases, never use: 'sorry you feel that way', 'as per our policy', 'not reflective of our standards', 'we take these matters seriously'.
-
-Return ONLY valid JSON:
-{ response_text: string, word_count: number,
-  tone_match_score: number 0-100,
-  complaint_theme: string or null (main complaint category if negative) }`;
+${
+  productContext
+    ? `\nProducts and services information:\n"""\n${productContext}\n"""\n`
+    : ''
 }
 
-// Free models (gpt-oss-20b) are inconsistent and sometimes emit malformed JSON,
-// so retry a few times and keep the first response that parses.
+For rating 4-5: warm, specific, 50-80 words.
+For rating 1-3: empathetic, solution-focused, 50-80 words, includes contact method placeholder [CONTACT_METHOD].
+
+Never use: "we apologize", "we're sorry to hear", "valued customer".
+Always sound like the brand wrote it.
+
+Return ONLY valid JSON:
+{ "response_text": "string", "word_count": 0, "tone_match_score": 0, "complaint_theme": "string or null" }`;
+}
+
 async function generateWithRetry(
   system: string,
   user: string,
@@ -57,45 +60,70 @@ async function generateWithRetry(
     }
   }
   throw new Error(
-    `Model returned malformed JSON after ${MAX_ATTEMPTS} attempts (free gpt-oss-20b is unreliable — try again or switch ACTIVE_MODEL). Last parse error: ${lastParseError?.message}`,
+    `Model returned malformed JSON after ${MAX_ATTEMPTS} attempts. Last parse error: ${lastParseError?.message}`,
   );
 }
 
-// Shared logic, reused by the test route.
 export async function runReputation(params: {
   client_id: string;
   review_text: string;
-  star_rating: number;
-  platform: string;
+  rating: number;
+  platform?: string;
   reviewer_name?: string;
-  /** When set, refresh this review's draft instead of inserting a new row. */
+  reviewer_email?: string;
+  reviewer_phone?: string;
   review_id?: string;
 }): Promise<{ status: number; body: any }> {
-  const { client_id, review_text, star_rating, platform, reviewer_name, review_id } = params;
+  const {
+    client_id, review_text, rating, platform = 'unknown', reviewer_name,
+    reviewer_email, reviewer_phone, review_id,
+  } = params;
 
-  // STEP 1 — Load brand context for voice (fall back to a neutral tone).
+  // ── BEFORE ACTING ────────────────────────────────────────────────────────
+  let contactId: string | null = null;
+  if (reviewer_email) {
+    const contact = await findOrCreateContact({
+      client_id,
+      email: reviewer_email,
+    });
+    if (contact) {
+      contactId = contact.id;
+    }
+  }
+
+  const voiceContext = await retrieveContext('brand voice tone and communication style', client_id);
+  const productContext = await retrieveContext('products and services and common customer questions', client_id);
+
   const { brand } = await getClientContext(client_id);
   const companyName = brand?.company_name || 'our company';
   const toneDescription = brand?.tone_description || NEUTRAL_TONE;
 
-  // STEP 2 — Generate the response, grounded in retrieved brand-voice examples.
-  const voiceContext = await retrieveContext(
-    'brand voice tone and communication style examples',
-    client_id,
-    'voice',
-    3,
-  );
-
-  const system = buildSystemPrompt(companyName, toneDescription, voiceContext);
+  // ── CORE ACTION ────────────────────────────────────────────────────────
+  const system = buildSystemPrompt(companyName, toneDescription, voiceContext, productContext);
   const user =
-    `Platform: ${platform} Rating: ${star_rating} stars ` +
+    `Platform: ${platform} Rating: ${rating} stars ` +
     `Reviewer: ${reviewer_name || 'Anonymous'} Review: ${review_text}`;
 
-  const { ai, analysis } = await generateWithRetry(system, user);
-  const tokensUsed = ai.inputTokens + ai.outputTokens;
+  let ai: any;
+  let analysis: any;
+  try {
+    const result = await generateWithRetry(system, user);
+    ai = result.ai;
+    analysis = result.analysis;
+  } catch (err: any) {
+    await logAgentRun({
+      client_id,
+      agent_type: 'reputation_intelligence',
+      status: 'error',
+      output_summary: 'Failed to generate review response',
+      metadata: { error: err?.message || String(err) },
+    });
+    return {
+      status: 500,
+      body: { success: false, error: err?.message || String(err) },
+    };
+  }
 
-  // STEP 3 — Save to reviews table. Regenerating an existing review updates
-  // that row rather than creating a duplicate.
   if (review_id) {
     await supabaseAdmin
       .from('reviews')
@@ -110,7 +138,7 @@ export async function runReputation(params: {
     await supabaseAdmin.from('reviews').insert({
       client_id,
       platform,
-      star_rating,
+      star_rating: rating,
       review_text,
       reviewer_name,
       response_text: analysis.response_text,
@@ -120,28 +148,51 @@ export async function runReputation(params: {
     });
   }
 
-  // STEP 4 — Log the run.
+  // ── AFTER ACTING ────────────────────────────────────────────────────────
+  if (contactId) {
+    await logInteraction({
+      contact_id: contactId,
+      client_id,
+      agent_name: 'reputation_intelligence',
+      interaction_type: 'review',
+      summary: (reviewer_name || 'Anonymous') + ' left ' + rating + ' star review',
+      sentiment_score: rating * 20,
+      metadata: { rating, review_text, response_drafted: true },
+    });
+
+    if (rating <= 3) {
+      await updateContactScore({ contact_id: contactId, score_delta: -15 });
+    } else if (rating >= 4) {
+      await updateContactScore({ contact_id: contactId, score_delta: 10 });
+    }
+  }
+
+  await storeRAGChunk({
+    client_id,
+    content: 'Review response example: ' + analysis.response_text,
+    chunk_type: 'voice',
+    source_agent: 'reputation_intelligence',
+  });
+
   await logAgentRun({
     client_id,
-    agent_type: 'reputation',
+    agent_type: 'reputation_intelligence',
     status: 'completed',
     input_tokens: ai.inputTokens,
     output_tokens: ai.outputTokens,
     cost_usd: ai.cost,
-    output_summary:
-      `${star_rating}-star ${platform} review responded` +
-      (analysis.complaint_theme ? ` (theme: ${analysis.complaint_theme})` : ''),
+    output_summary: `${rating}-star review responded`,
+    metadata: { rating, contact_id: contactId, platform },
   });
 
   return {
     status: 200,
     body: {
-      response_text: analysis.response_text,
-      word_count: analysis.word_count,
-      tone_match_score: analysis.tone_match_score,
-      complaint_theme: analysis.complaint_theme,
-      cost_usd: ai.cost,
-      tokens_used: tokensUsed,
+      success: true,
+      response: analysis.response_text,
+      contact_id: contactId,
+      sentiment_score: rating * 20,
+      brand_context_used: !!voiceContext,
     },
   };
 }
@@ -149,38 +200,47 @@ export async function runReputation(params: {
 export async function POST(req: Request) {
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
-      { error: 'OPENROUTER_API_KEY missing from .env.local' },
+      { success: false, error: 'OPENROUTER_API_KEY missing from .env.local' },
       { status: 503 },
     );
   }
 
   try {
-    const { client_id, review_text, star_rating, platform, reviewer_name, review_id } =
-      await req.json();
+    const body = await req.json();
+    const client_id = body.client_id;
+    const review_text = body.review_text;
+    const rating = body.rating ?? body.star_rating;
+    const platform = body.platform || 'unknown';
+    const reviewer_name = body.reviewer_name;
+    const review_id = body.review_id;
+    const reviewer_email = body.reviewer_email;
+    const reviewer_phone = body.reviewer_phone;
 
-    if (!client_id || !review_text || star_rating == null || !platform) {
+    if (!client_id || !review_text || rating == null) {
       return NextResponse.json(
         {
-          error:
-            'client_id, review_text, star_rating, and platform are required.',
+          success: false,
+          error: 'client_id, review_text, and rating are required.',
         },
         { status: 400 },
       );
     }
 
-    const { status, body } = await runReputation({
+    const { status, body: resultBody } = await runReputation({
       client_id,
       review_text,
-      star_rating,
+      rating,
       platform,
       reviewer_name,
       review_id,
+      reviewer_email,
+      reviewer_phone,
     });
-    return NextResponse.json(body, { status });
+    return NextResponse.json(resultBody, { status });
   } catch (err: any) {
     console.error('[reputation] POST failed:', err);
     return NextResponse.json(
-      { error: err?.message || String(err), stack: err?.stack },
+      { success: false, error: err?.message || String(err) },
       { status: 500 },
     );
   }

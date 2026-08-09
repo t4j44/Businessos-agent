@@ -16,7 +16,7 @@ export async function GET() {
     const positive = await runReputation({
       client_id: TEST_CLIENT_ID,
       platform: 'Google',
-      star_rating: 5,
+      rating: 5,
       review_text:
         'Absolutely incredible service! Sarah went above and beyond to help me. ' +
         'The team was responsive and professional. Highly recommend!',
@@ -27,7 +27,7 @@ export async function GET() {
     const negative = await runReputation({
       client_id: TEST_CLIENT_ID,
       platform: 'Yelp',
-      star_rating: 2,
+      rating: 2,
       review_text:
         'Waited 45 minutes past my appointment with no communication. ' +
         'The staff seemed disorganized. Very disappointing.',

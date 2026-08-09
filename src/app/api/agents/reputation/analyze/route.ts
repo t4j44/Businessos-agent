@@ -238,3 +238,75 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
   }
 }
+
+// Batch entry point used by the Vercel cron (/api/cron/reputation-scan).
+//
+// GET above is the read-only dashboard aggregator. This POST is the actor: it
+// finds reviews that have no drafted reply yet and runs the reputation agent
+// over each one. Without it the cron would hit a 405, since this file
+// previously exported GET only.
+export async function POST(req: Request) {
+  if (!process.env.OPENROUTER_API_KEY) {
+    return NextResponse.json(
+      { error: 'OPENROUTER_API_KEY missing from .env.local' },
+      { status: 503 },
+    );
+  }
+
+  try {
+    const { client_id, limit } = await req.json();
+
+    if (!client_id) {
+      return NextResponse.json({ error: 'client_id is required.' }, { status: 400 });
+    }
+
+    const { runReputation } = await import('../route');
+
+    const { data: rows, error } = await supabaseAdmin
+      .from('reviews')
+      .select('id, platform, star_rating, review_text, reviewer_name, responded, response_text')
+      .eq('client_id', client_id)
+      .eq('responded', false)
+      .is('response_text', null)
+      .order('star_rating', { ascending: true })
+      .limit(Number(limit) || 25);
+
+    if (error) {
+      console.error('[reputation/analyze] POST query failed:', error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const pending = (rows || []).filter((r: any) => r.review_text && r.star_rating != null);
+    const results: any[] = [];
+
+    for (const review of pending) {
+      try {
+        const { status, body } = await runReputation({
+          client_id,
+          review_text: review.review_text,
+          rating: Number(review.star_rating),
+          platform: review.platform || 'Google',
+          reviewer_name: review.reviewer_name || undefined,
+          review_id: review.id,
+        });
+        results.push({
+          review_id: review.id,
+          status: status === 200 ? 'ok' : 'failed',
+          error: status === 200 ? undefined : body?.error,
+        });
+      } catch (err: any) {
+        results.push({ review_id: review.id, status: 'error', error: err?.message });
+      }
+    }
+
+    return NextResponse.json({
+      client_id,
+      pending: pending.length,
+      drafted: results.filter((r) => r.status === 'ok').length,
+      results,
+    });
+  } catch (err: any) {
+    console.error('[reputation/analyze] POST failed:', err);
+    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+  }
+}

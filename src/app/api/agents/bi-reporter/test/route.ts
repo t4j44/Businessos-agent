@@ -3,18 +3,12 @@ import { runBiReporter } from '../route';
 
 const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
 
-// Deliberately mixed: 56% call resolution rate is BELOW the 65% target,
-// so the brief's "What's Not Working" section must call this out.
 const FAKE_METRICS = {
-  calls_handled: 34,
-  calls_resolved: 19,
-  calls_escalated: 8,
-  avg_sentiment: 61,
-  reviews_total: 5,
-  reviews_responded: 2,
-  invoices_sent: 6,
-  invoices_paid: 2,
-  invoices_overdue: 4,
+  calls: { total: 34, resolved: 19, escalated: 8, avg_sentiment: 61 },
+  reviews: { total: 5, avg_rating: 4.5, responded: 2 },
+  invoices: { total: 6, paid: 2, overdue: 4, sum_amount_due: 1500 },
+  agent_runs: { total: 10, sum_cost_usd: 2.5 },
+  contacts: { at_risk: 3 },
 };
 
 export async function GET() {
@@ -29,10 +23,11 @@ export async function GET() {
     const { status, body } = await runBiReporter(TEST_CLIENT_ID, FAKE_METRICS);
     return NextResponse.json({
       status,
+      success: body.success,
       brief_html: body.brief_html,
-      has_negative_section: body.has_negative_section,
       ware_score: body.ware_score,
-      summary: body.summary,
+      metrics: body.metrics,
+      saved_to_db: body.saved_to_db,
     });
   } catch (err: any) {
     console.error('[bi-reporter/test] failed:', err);

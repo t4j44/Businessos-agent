@@ -5,8 +5,9 @@ const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
 
 const FAKE_INVOICE = {
   customer_name: 'John Smith',
-  amount_cents: 50000,
-  invoice_number: 'INV-001',
+  amount_due: 500.00,
+  invoice_id: 'INV-001',
+  days_overdue: 15,
 };
 
 export async function GET() {

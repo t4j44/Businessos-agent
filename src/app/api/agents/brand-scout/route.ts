@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { callAI, MODELS, parseJSON } from '@/lib/ai';
-import { readWebsite } from '@/lib/jina';
+import { readWebsite, normalizeUrl } from '@/lib/scraper';
 import { supabaseAdmin } from '@/lib/supabase';
 import { logAgentRun } from '@/lib/log';
-import { createEmbedding } from '@/lib/voyage';
+import { createEmbedding, retrieveContext, storeRAGChunk } from '@/lib/embeddings';
+
+// ACTIVE_MODEL in src/lib/ai.ts is a module constant, not an environment
+// variable. Honour an env override here for parity with the spec, falling back
+// to MODELS.SONNET (which already resolves to 'anthropic/claude-sonnet-5').
+const MODEL = process.env.ACTIVE_MODEL || MODELS.SONNET;
 
 // Splits text into ~maxChars chunks, breaking on sentence boundaries so a
 // chunk stays semantically whole. Sentences longer than maxChars are hard-split.
@@ -37,6 +42,8 @@ function chunkText(text: string, maxChars = 400): string[] {
 const SYSTEM_PROMPT = `You are a brand analyst. Analyze the website content and extract brand intelligence. Return ONLY valid JSON, no markdown fences, no extra text, with exactly these keys:
 {
   company_name: string,
+  tagline: string (their one-line slogan, or empty string),
+  description: string (what the business does, 2-3 sentences),
   icp_summary: string (who they sell to, 2-3 sentences),
   tone_description: string (their communication style, 1-2 sentences),
   tone_type: 'formal' | 'casual' | 'technical',
@@ -46,8 +53,12 @@ const SYSTEM_PROMPT = `You are a brand analyst. Analyze the website content and 
   value_proposition: string (main selling point, one sentence),
   brand_colors: string (colors mentioned, or empty string),
   greeting_text: string (a warm greeting their AI receptionist would use),
-  faq_json: array of {question: string, answer: string} (3-5 likely FAQs)
+  faq_json: array of {question: string, answer: string} (3-5 likely FAQs),
+  contact_info: object with optional keys {email, phone, address} (omit what is absent),
+  location: string (city/region they operate from, or empty string)
 }`;
+
+const MAX_ATTEMPTS = 3;
 
 export type BrandScoutResult = {
   brand_profile: any;
@@ -57,67 +68,140 @@ export type BrandScoutResult = {
   response_time_ms: number;
 };
 
+// Joins the parts of a RAG chunk, dropping whatever the model left empty so a
+// chunk never reads "undefined" or embeds a lone label.
+function joinChunk(parts: Array<string | undefined | null>): string {
+  return parts.filter((p) => p && String(p).trim()).join('\n\n').trim();
+}
+
+function describeProducts(products: any): string {
+  if (!Array.isArray(products) || products.length === 0) return '';
+  const lines = products
+    .map((p: any) => {
+      if (p && typeof p === 'object') {
+        const name = p.name || '';
+        const desc = p.description || '';
+        return name && desc ? `${name}: ${desc}` : name || desc;
+      }
+      return String(p);
+    })
+    .filter(Boolean);
+  return lines.length ? 'Products and services:\n' + lines.join('\n') : '';
+}
+
 // Shared logic, reused by the test route.
 export async function runBrandScout(
   url: string,
   client_id?: string,
 ): Promise<{ status: number; body: any }> {
+  url = normalizeUrl(url);
   const startedAt = Date.now();
 
-  // STEP 1 — Read the website
+  // ── BEFORE ACTING ────────────────────────────────────────────────────────
+  // Existing profile decides update-vs-insert; a re-run always re-scrapes.
+  let refreshed = false;
+  let existingProfileId: string | null = null;
+  let existingContext = '';
+
+  if (client_id) {
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from('brand_profiles')
+      .select('id')
+      .eq('client_id', client_id)
+      .maybeSingle();
+
+    if (existingError) {
+      console.error('[brand-scout] existing profile lookup failed:', existingError.message);
+    } else if (existing) {
+      refreshed = true;
+      existingProfileId = existing.id;
+      console.log(`[brand-scout] refreshing existing brand profile for client ${client_id}`);
+    }
+
+    existingContext = await retrieveContext(
+      'brand identity and business description',
+      client_id,
+    );
+  }
+
+  // ── CORE ACTION — scrape (Crawl4AI first, Jina fallback via readWebsite) ──
   const content = await readWebsite(url, 6000);
   if (!content) {
+    await logAgentRun({
+      client_id: client_id || '',
+      agent_type: 'brand_scout',
+      status: 'error',
+      cost_usd: 0,
+      output_summary: 'Could not read website',
+      metadata: { input_data: { url }, output_data: null, error: 'Could not read website' },
+    });
     return {
       status: 400,
-      body: { error: 'Could not read that website. Check the URL.' },
+      body: { success: false, error: 'Could not read website' },
     };
   }
 
-  // STEP 2 — Extract Brand DNA.
-  // Free models (gpt-oss-20b) are inconsistent and sometimes emit malformed
-  // JSON, so retry a few times and keep the first response that parses.
-  const MAX_ATTEMPTS = 3;
+  // ── CORE ACTION — extract Brand DNA ──────────────────────────────────────
+  // Models sometimes emit malformed JSON, so retry and keep the first parse.
   let ai: Awaited<ReturnType<typeof callAI>> | undefined;
   let brandProfile: any;
-  let lastParseError: any;
+  let lastError: any;
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    ai = await callAI({
-      model: MODELS.SONNET,
-      system: SYSTEM_PROMPT,
-      user: 'Analyze this website content:\n\n' + content,
-      maxTokens: 2000,
-    });
     try {
+      ai = await callAI({
+        model: MODEL,
+        system: SYSTEM_PROMPT,
+        user: 'Analyze this website content:\n\n' + content,
+        maxTokens: 2000,
+      });
       brandProfile = parseJSON(ai.text);
       break;
     } catch (e: any) {
-      lastParseError = e;
+      lastError = e;
       console.error(
-        `[brand-scout] JSON parse failed (attempt ${attempt}/${MAX_ATTEMPTS}): ${e?.message}\nRAW MODEL OUTPUT >>>\n${ai.text}\n<<< END RAW`,
+        `[brand-scout] extraction failed (attempt ${attempt}/${MAX_ATTEMPTS}): ${e?.message}`,
       );
     }
   }
 
   if (!brandProfile || !ai) {
-    throw new Error(
-      `Model returned malformed JSON after ${MAX_ATTEMPTS} attempts (free gpt-oss-20b is unreliable — try again or switch ACTIVE_MODEL). Last parse error: ${lastParseError?.message}`,
-    );
+    // Never throws — the agentic contract is a logged failure, not an exception.
+    await logAgentRun({
+      client_id: client_id || '',
+      agent_type: 'brand_scout',
+      status: 'error',
+      cost_usd: ai?.cost || 0,
+      output_summary: 'Brand DNA extraction failed',
+      metadata: {
+        input_data: { url },
+        output_data: null,
+        error: lastError?.message || 'AI call failed',
+      },
+    });
+    return {
+      status: 502,
+      body: {
+        success: false,
+        error: 'Could not extract brand profile',
+        detail: lastError?.message || 'AI call failed',
+      },
+    };
   }
 
   const tokensUsed = ai.inputTokens + ai.outputTokens;
 
-  // STEP 3 — Save to Supabase (only when a client_id was provided)
+  // ── AFTER ACTING ─────────────────────────────────────────────────────────
   let savedToDb = false;
-  let chunksCreated = 0;
-  if (client_id) {
-    await supabaseAdmin
-      .from('brand_profiles')
-      .delete()
-      .eq('client_id', client_id);
+  let chunksStored = 0;
+  let rawChunksCreated = 0;
 
-    await supabaseAdmin.from('brand_profiles').insert({
+  if (client_id) {
+    const profileRow = {
       client_id,
       company_name: brandProfile.company_name,
+      tagline: brandProfile.tagline,
+      description: brandProfile.description,
       icp_summary: brandProfile.icp_summary,
       tone_description: brandProfile.tone_description,
       tone_type: brandProfile.tone_type,
@@ -128,21 +212,39 @@ export async function runBrandScout(
       brand_colors: brandProfile.brand_colors,
       greeting_text: brandProfile.greeting_text,
       faq_json: brandProfile.faq_json,
+      contact_info: brandProfile.contact_info || {},
+      location: brandProfile.location,
       last_scraped_at: new Date().toISOString(),
-    });
+    };
+
+    // Upsert by hand rather than .upsert({ onConflict: 'client_id' }) — that
+    // needs a unique constraint, which brand_profiles only gains in migration
+    // 007. Updating in place also preserves the row id across refreshes.
+    const { error: writeError } = existingProfileId
+      ? await supabaseAdmin
+          .from('brand_profiles')
+          .update(profileRow)
+          .eq('id', existingProfileId)
+      : await supabaseAdmin.from('brand_profiles').insert(profileRow);
+
+    if (writeError) {
+      console.error('[brand-scout] brand_profiles write failed:', writeError.message);
+    } else {
+      savedToDb = true;
+    }
 
     await supabaseAdmin.from('clients').update({ url }).eq('id', client_id);
 
-    savedToDb = true;
-
-    // STEP 3b — Embed the website content so agents can retrieve brand memory
-    // by meaning. Replaces this client's previous 'brand' chunks on a re-run.
+    // Replace every chunk type this route writes, so a re-run refreshes brand
+    // memory instead of stacking a second copy on top.
     await supabaseAdmin
       .from('rag_chunks')
       .delete()
       .eq('client_id', client_id)
-      .eq('chunk_type', 'brand');
+      .in('chunk_type', ['brand', 'icp', 'voice']);
 
+    // Raw page text, chunked on sentence boundaries. Retained from the previous
+    // implementation — it captures what the site actually says.
     const chunks = chunkText(content, 400);
     const embeddings = await Promise.all(chunks.map((c) => createEmbedding(c)));
 
@@ -162,32 +264,79 @@ export async function runBrandScout(
       const { error: chunkError } = await supabaseAdmin.from('rag_chunks').insert(rows);
       if (chunkError) {
         console.error('[brand-scout] rag_chunks insert failed:', chunkError.message);
+      } else {
+        rawChunksCreated = rows.length;
       }
     }
 
-    chunksCreated = rows.length;
+    // The three structured Brand DNA chunks. These capture what the model
+    // concluded, phrased so a similarity search on "who do we sell to" or
+    // "how do we sound" lands on them.
+    const structured: Array<{ content: string; chunk_type: string }> = [
+      {
+        content: joinChunk([brandProfile.description, describeProducts(brandProfile.products_json)]),
+        chunk_type: 'brand',
+      },
+      {
+        content: joinChunk([
+          brandProfile.icp_summary && 'Our ideal customer: ' + brandProfile.icp_summary,
+          brandProfile.value_proposition && 'Our value proposition: ' + brandProfile.value_proposition,
+        ]),
+        chunk_type: 'icp',
+      },
+      {
+        content: joinChunk([
+          brandProfile.tone_description && 'Our communication tone: ' + brandProfile.tone_description,
+          brandProfile.tagline && 'Our tagline: ' + brandProfile.tagline,
+        ]),
+        chunk_type: 'voice',
+      },
+    ];
+
+    for (const chunk of structured) {
+      if (!chunk.content) continue;
+      await storeRAGChunk({
+        client_id,
+        content: chunk.content,
+        chunk_type: chunk.chunk_type,
+        source_agent: 'brand_scout',
+        metadata: { source_url: url, refreshed },
+      });
+      chunksStored++;
+    }
+
     console.log(
-      `[brand-scout] embedded ${chunksCreated} of ${chunks.length} chunks for client ${client_id}`,
+      `[brand-scout] stored ${chunksStored} structured chunks and ${rawChunksCreated} page chunks for client ${client_id}`,
     );
   }
 
-  // STEP 4 — Log the run
   await logAgentRun({
     client_id: client_id || '',
     agent_type: 'brand_scout',
-    status: 'completed',
+    status: 'success',
     input_tokens: ai.inputTokens,
     output_tokens: ai.outputTokens,
     cost_usd: ai.cost,
-    output_summary: brandProfile.company_name + ' brand profile created',
+    output_summary: (brandProfile.company_name || 'Brand') + ' profile ' + (refreshed ? 'refreshed' : 'created'),
+    metadata: {
+      input_data: { url },
+      output_data: brandProfile,
+      refreshed,
+      chunks_stored: chunksStored,
+    },
   });
 
   return {
     status: 200,
     body: {
+      success: true,
       brand_profile: brandProfile,
+      chunks_stored: chunksStored,
+      refreshed,
+      existing_context: existingContext,
+      // Retained for existing callers (agent-lab reads saved_to_db).
       saved_to_db: savedToDb,
-      chunks_created: chunksCreated,
+      chunks_created: chunksStored + rawChunksCreated,
       tokens_used: tokensUsed,
       cost_usd: ai.cost,
       response_time_ms: Date.now() - startedAt,
@@ -198,17 +347,20 @@ export async function runBrandScout(
 export async function POST(req: Request) {
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
-      { error: 'OPENROUTER_API_KEY missing from .env.local' },
+      { success: false, error: 'OPENROUTER_API_KEY missing from .env.local' },
       { status: 503 },
     );
   }
 
   try {
-    const { url, client_id } = await req.json();
+    let { url, client_id } = await req.json();
+    if (url) {
+      url = normalizeUrl(url);
+    }
 
     if (!url) {
       return NextResponse.json(
-        { error: 'Could not read that website. Check the URL.' },
+        { success: false, error: 'Could not read website' },
         { status: 400 },
       );
     }
@@ -218,7 +370,7 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error('[brand-scout] POST failed:', err);
     return NextResponse.json(
-      { error: err?.message || String(err), stack: err?.stack },
+      { success: false, error: err?.message || String(err) },
       { status: 500 },
     );
   }

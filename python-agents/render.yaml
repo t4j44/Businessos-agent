@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: businessos-python-agents
+    env: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: NEXT_APP_URL
+        sync: false

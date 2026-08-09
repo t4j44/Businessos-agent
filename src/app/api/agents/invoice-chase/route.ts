@@ -2,91 +2,80 @@ import { NextResponse } from 'next/server';
 import { callAI, MODELS, parseJSON } from '@/lib/ai';
 import { getClientContext } from '@/lib/supabase';
 import { logAgentRun } from '@/lib/log';
+import { findOrCreateContact, logInteraction, updateContactScore, getContactHistory } from '@/lib/contacts';
+import { retrieveContext, storeRAGChunk } from '@/lib/embeddings';
 
 const NEUTRAL_TONE =
   'professional, courteous, and clear — like a well-run business communicating respectfully.';
 
 type ChaseStep = 1 | 2 | 3 | 4 | 5;
-type Channel = 'email' | 'sms' | 'voice';
+type Channel = 'email' | 'sms' | 'voice' | 'none';
 
 const STEP_CHANNEL: Record<ChaseStep, Channel> = {
   1: 'email',
   2: 'sms',
   3: 'email',
   4: 'voice',
-  5: 'email',
+  5: 'none',
 };
 
-// The FDCPA disclosure must appear verbatim, so it is built in code — never
-// left to the model — and prepended to the step-4 message.
-function buildDisclosure(companyName: string, invoiceNumber: string, formattedAmount: string): string {
-  return (
-    `This is an automated message from ${companyName} regarding invoice ${invoiceNumber} ` +
-    `for ${formattedAmount}. This is an attempt to collect a debt. You have the right to dispute this invoice.`
-  );
-}
+const FDCPA_DISCLOSURE = "This is an attempt to collect a debt. Any information obtained will be used for that purpose.";
 
-function formatAmount(amountCents: number): string {
-  return '$' + (amountCents / 100).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function buildSystemPrompt(step: ChaseStep, companyName: string, toneDescription: string): string {
-  const voice = `You are drafting overdue-invoice chase messages for ${companyName}. Brand tone: ${toneDescription}.`;
+function buildSystemPrompt(
+  step: ChaseStep,
+  companyName: string,
+  toneDescription: string,
+  voiceContext: string,
+  softerTone: boolean,
+): string {
+  const voice = `You are drafting overdue-invoice chase messages for ${companyName}. Brand tone: ${toneDescription}.
+${voiceContext ? `\nReal examples of how this brand writes — match this voice closely:\n"""\n${voiceContext}\n"""\n` : ''}`;
 
   switch (step) {
     case 1:
       return `${voice}
 
-This is STEP 1 (Day+1) of a 5-step chase sequence — a friendly email.
-Write a short, warm email just checking that the customer received the invoice. No pressure, no urgency.
+This is STEP 1 (days 1-3) of a 5-step chase sequence.
+Write a friendly reminder email. No pressure, no urgency.
+${softerTone ? 'IMPORTANT: The customer has a history of negative interactions. Use an exceptionally soft, empathetic, and understanding tone.' : ''}
 
-Return ONLY valid JSON: { channel: "email", message: string, step: 1 }`;
+Return ONLY valid JSON: { "channel": "email", "message": "string", "step": 1 }`;
     case 2:
       return `${voice}
 
-This is STEP 2 (Day+3) of a 5-step chase sequence — an SMS reminder.
-Write a short SMS, STRICTLY under 160 characters total, that mentions payment is due.
+This is STEP 2 (days 4-7) of a 5-step chase sequence.
+Write a follow-up email or SMS with urgency.
+${softerTone ? 'IMPORTANT: The customer has a history of negative interactions. Use an exceptionally soft, empathetic, and understanding tone.' : ''}
 
-Return ONLY valid JSON: { channel: "sms", message: string, step: 2 }`;
+Return ONLY valid JSON: { "channel": "sms", "message": "string", "step": 2 }`;
     case 3:
       return `${voice}
 
-This is STEP 3 (Day+7) of a 5-step chase sequence — a firm email.
-Write a firmer email stating the invoice is now overdue and asking the customer to arrange payment. Still professional, not aggressive.
+This is STEP 3 (days 8-14) of a 5-step chase sequence.
+Write a firm notice stating the invoice is now overdue.
 
-Return ONLY valid JSON: { channel: "email", message: string, step: 3 }`;
+Return ONLY valid JSON: { "channel": "email", "message": "string", "step": 3 }`;
     case 4:
       return `${voice}
 
-This is STEP 4 (Day+7) of a 5-step chase sequence — a voice call script.
-A mandatory legal disclosure will be prepended to your text separately — do NOT write any disclosure, legal language, or debt-collection notice yourself.
-Write ONLY the polite spoken request to pay: 1-2 short sentences, referencing the invoice and asking the customer to make payment.
+This is STEP 4 (days 15-21) of a 5-step chase sequence.
+Write a final warning message. A mandatory legal disclosure will be appended to your text separately. Do NOT write any legal disclosures yourself.
 
-Return ONLY valid JSON: { channel: "voice", message: string, step: 4 }`;
+Return ONLY valid JSON: { "channel": "voice", "message": "string", "step": 4 }`;
     case 5:
-      return `${voice}
-
-This is STEP 5 (Day+14) of a 5-step chase sequence — a final notice email, sent before further action is taken.
-Write a serious, final-notice email: state this is the last reminder before the matter is escalated, while remaining professional and not threatening.
-
-Return ONLY valid JSON: { channel: "email", message: string, step: 5 }`;
+      return '';
   }
 }
 
 function buildUserMessage(
   companyName: string,
   customerName: string,
-  invoiceNumber: string,
-  formattedAmount: string,
+  invoiceId: string,
+  amountDue: string,
 ): string {
-  return `Company: ${companyName}\nCustomer: ${customerName}\nInvoice: ${invoiceNumber}\nAmount due: ${formattedAmount}`;
+  return `Company: ${companyName}\nCustomer: ${customerName}\nInvoice: ${invoiceId}\nAmount due: ${amountDue}`;
 }
 
-// Free/paid models occasionally emit malformed JSON, so retry a few times
-// and keep the first response that parses.
 async function generateWithRetry(
   system: string,
   user: string,
@@ -111,72 +100,137 @@ async function generateWithRetry(
     }
   }
   throw new Error(
-    `Model returned malformed JSON after ${MAX_ATTEMPTS} attempts (try again or switch ACTIVE_MODEL). Last parse error: ${lastParseError?.message}`,
+    `Model returned malformed JSON after ${MAX_ATTEMPTS} attempts. Last parse error: ${lastParseError?.message}`,
   );
 }
 
-// Shared logic, reused by the test route.
 export async function runInvoiceChase(params: {
   client_id: string;
+  customer_email?: string;
   customer_name: string;
-  amount_cents: number;
-  invoice_number: string;
+  invoice_id: string;
+  amount_due: number;
+  days_overdue: number;
   chase_step: ChaseStep;
 }): Promise<{ status: number; body: any }> {
-  const { client_id, customer_name, amount_cents, invoice_number, chase_step } = params;
+  const {
+    client_id, customer_email, customer_name, invoice_id, amount_due, days_overdue, chase_step
+  } = params;
 
   if (![1, 2, 3, 4, 5].includes(chase_step)) {
     return {
       status: 400,
-      body: { error: 'chase_step must be an integer from 1 to 5.' },
+      body: { success: false, error: 'chase_step must be an integer from 1 to 5.' },
     };
   }
 
-  // STEP 1 — Load brand context for voice (fall back to a neutral tone).
+  // ── BEFORE ACTING ────────────────────────────────────────────────────────
+  let contactId: string | null = null;
+  let hasNegativeHistory = false;
+
+  if (customer_email) {
+    const contact = await findOrCreateContact({
+      client_id,
+      email: customer_email,
+    });
+    if (contact) {
+      contactId = contact.id;
+      const history = await getContactHistory({ contact_id: contactId });
+      
+      hasNegativeHistory = history.some(
+        (h) => h.sentiment_score !== null && h.sentiment_score < 50
+      );
+    }
+  }
+
+  const voiceContext = await retrieveContext('brand voice tone and communication style', client_id);
+
+  // ── CORE ACTION ────────────────────────────────────────────────────────
   const { brand } = await getClientContext(client_id);
   const companyName = brand?.company_name || 'our company';
   const toneDescription = brand?.tone_description || NEUTRAL_TONE;
-  const formattedAmount = formatAmount(amount_cents);
+  const formattedAmount = '$' + amount_due.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // STEP 2 — Generate the message for the requested chase step.
-  const system = buildSystemPrompt(chase_step, companyName, toneDescription);
-  const user = buildUserMessage(companyName, customer_name, invoice_number, formattedAmount);
-
-  const { ai, analysis } = await generateWithRetry(system, user);
-  const tokensUsed = ai.inputTokens + ai.outputTokens;
-
-  let message: string = analysis.message;
+  let message: string | null = null;
+  let ai: any = null;
   const channel: Channel = STEP_CHANNEL[chase_step];
 
-  if (chase_step === 4) {
-    const disclosure = buildDisclosure(companyName, invoice_number, formattedAmount);
-    // Guarantee the disclosure is exact and first, regardless of what the model wrote.
-    message = disclosure + ' ' + (message || '').trim();
+  if (chase_step === 5) {
+    message = null;
+  } else {
+    const system = buildSystemPrompt(chase_step, companyName, toneDescription, voiceContext, hasNegativeHistory);
+    const user = buildUserMessage(companyName, customer_name, invoice_id, formattedAmount);
+
+    try {
+      const result = await generateWithRetry(system, user);
+      ai = result.ai;
+      message = result.analysis.message || '';
+      
+      if (chase_step === 4) {
+        message = (message || '').trim() + ' ' + FDCPA_DISCLOSURE;
+      }
+      
+      if (chase_step === 2 && message && message.length > 160) {
+        message = message.slice(0, 157) + '...';
+      }
+    } catch (err: any) {
+      await logAgentRun({
+        client_id,
+        agent_type: 'invoice_chase',
+        status: 'error',
+        output_summary: 'Failed to generate chase message',
+        metadata: { error: err?.message || String(err) },
+      });
+      return {
+        status: 500,
+        body: { success: false, error: err?.message || String(err) },
+      };
+    }
   }
 
-  if (chase_step === 2 && message.length > 160) {
-    message = message.slice(0, 157) + '...';
+  // ── AFTER ACTING ────────────────────────────────────────────────────────
+  if (contactId) {
+    await logInteraction({
+      contact_id: contactId,
+      client_id,
+      agent_name: 'invoice_chase',
+      interaction_type: 'invoice_chase_step_' + chase_step,
+      summary: 'Invoice chase step ' + chase_step + ' sent to ' + customer_name + ' for $' + amount_due,
+      sentiment_score: undefined,
+      metadata: { invoice_id, amount_due, days_overdue, chase_step, message_sent: chase_step !== 5 },
+    });
+
+    const scoreDelta = -5 * chase_step;
+    await updateContactScore({ contact_id: contactId, score_delta: scoreDelta });
   }
 
-  // STEP 3 — Log the run.
+  await storeRAGChunk({
+    client_id,
+    content: 'Invoice chase: ' + customer_name + ' owes $' + amount_due + ', on step ' + chase_step + ', ' + days_overdue + ' days overdue',
+    chunk_type: 'contact',
+    source_agent: 'invoice_chase',
+  });
+
   await logAgentRun({
     client_id,
     agent_type: 'invoice_chase',
     status: 'completed',
-    input_tokens: ai.inputTokens,
-    output_tokens: ai.outputTokens,
-    cost_usd: ai.cost,
-    output_summary: `Chase step ${chase_step} (${channel}) generated for invoice ${invoice_number}`,
+    input_tokens: ai?.inputTokens || 0,
+    output_tokens: ai?.outputTokens || 0,
+    cost_usd: ai?.cost || 0,
+    output_summary: `Chase step ${chase_step} processed for invoice ${invoice_id}`,
+    metadata: { invoice_id, chase_step, contact_id: contactId },
   });
 
   return {
     status: 200,
     body: {
-      channel,
+      success: true,
+      chase_step,
       message,
-      step: chase_step,
-      cost_usd: ai.cost,
-      tokens_used: tokensUsed,
+      contact_id: contactId,
+      fdcpa_compliant: chase_step === 4,
+      escalated: chase_step === 5,
     },
   };
 }
@@ -184,37 +238,45 @@ export async function runInvoiceChase(params: {
 export async function POST(req: Request) {
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
-      { error: 'OPENROUTER_API_KEY missing from .env.local' },
+      { success: false, error: 'OPENROUTER_API_KEY missing from .env.local' },
       { status: 503 },
     );
   }
 
   try {
-    const { client_id, customer_name, amount_cents, invoice_number, chase_step } =
-      await req.json();
+    const body = await req.json();
+    const client_id = body.client_id;
+    const customer_email = body.customer_email;
+    const customer_name = body.customer_name;
+    const invoice_id = body.invoice_id ?? body.invoice_number;
+    const amount_due = body.amount_due ?? (body.amount_cents != null ? body.amount_cents / 100 : null);
+    const days_overdue = body.days_overdue || 0;
+    const chase_step = body.chase_step;
 
-    if (!client_id || !customer_name || amount_cents == null || !invoice_number || !chase_step) {
+    if (!client_id || !customer_name || amount_due == null || !invoice_id || !chase_step) {
       return NextResponse.json(
         {
-          error:
-            'client_id, customer_name, amount_cents, invoice_number, and chase_step are required.',
+          success: false,
+          error: 'client_id, customer_name, amount_due, invoice_id, and chase_step are required.',
         },
         { status: 400 },
       );
     }
 
-    const { status, body } = await runInvoiceChase({
+    const { status, body: resultBody } = await runInvoiceChase({
       client_id,
+      customer_email,
       customer_name,
-      amount_cents,
-      invoice_number,
+      invoice_id,
+      amount_due,
+      days_overdue,
       chase_step,
     });
-    return NextResponse.json(body, { status });
+    return NextResponse.json(resultBody, { status });
   } catch (err: any) {
     console.error('[invoice-chase] POST failed:', err);
     return NextResponse.json(
-      { error: err?.message || String(err), stack: err?.stack },
+      { success: false, error: err?.message || String(err) },
       { status: 500 },
     );
   }

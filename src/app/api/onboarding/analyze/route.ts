@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { callAI, MODELS, parseJSON } from '@/lib/ai';
-import { readWebsite } from '@/lib/jina';
+import { readWebsite } from '@/lib/scraper';
 import { supabaseAdmin } from '@/lib/supabase';
 
 // Same brand-extraction prompt the Brand Scout agent uses.
