@@ -7,6 +7,7 @@ interface BadgeProps {
   dot?: boolean
 }
 
+// Low-opacity fill + hairline border, matching the agent status pills.
 export default function Badge({
   children,
   variant = 'gray',
@@ -14,26 +15,26 @@ export default function Badge({
   dot = false,
 }: BadgeProps) {
   const variants = {
-    green: 'bg-green-900/50 text-green-400 border-green-800',
-    blue: 'bg-blue-900/50 text-blue-400 border-blue-800',
-    red: 'bg-red-900/50 text-red-400 border-red-800',
-    amber: 'bg-amber-900/50 text-amber-400 border-amber-800',
-    gray: 'bg-slate-700 text-slate-300 border-slate-600',
-    purple: 'bg-purple-900/50 text-purple-400 border-purple-800',
+    green:  'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20',
+    blue:   'bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/20',
+    red:    'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20',
+    amber:  'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20',
+    gray:   'bg-[#52525B]/10 text-[#A1A1AA] border-[#2A2A30]',
+    purple: 'bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/20',
   }
 
   const dotColors = {
-    green: 'bg-green-400',
-    blue: 'bg-blue-400',
-    red: 'bg-red-400',
-    amber: 'bg-amber-400',
-    gray: 'bg-slate-400',
-    purple: 'bg-purple-400',
+    green: 'bg-[#10B981]',
+    blue: 'bg-[#7C3AED]',
+    red: 'bg-[#EF4444]',
+    amber: 'bg-[#F59E0B]',
+    gray: 'bg-[#71717A]',
+    purple: 'bg-[#7C3AED]',
   }
 
   const sizes = {
     sm: 'px-2 py-0.5 text-xs',
-    md: 'px-3 py-1 text-sm',
+    md: 'px-2.5 py-1 text-sm',
   }
 
   return (

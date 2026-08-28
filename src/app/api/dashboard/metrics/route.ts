@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { resolveClientId } from '@/lib/session';
 const WINDOW_DAYS = 7;
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -22,7 +23,7 @@ function briefSummary(html: string): string {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = searchParams.get('client_id') || TEST_CLIENT_ID;
+    const client_id = (await resolveClientId(req)).clientId;
     const since = new Date(Date.now() - WINDOW_DAYS * MS_DAY).toISOString();
 
     // ── agent_runs ────────────────────────────────────────────────────────
@@ -34,17 +35,36 @@ export async function GET(req: Request) {
       .order('created_at', { ascending: false });
 
     const runs = runRows || [];
-    const runTypeMap: Record<string, { count: number; cost: number }> = {};
+    // `runs` is ordered created_at DESC, so the first row seen for a given
+    // agent_type is that agent's most recent run — which is what the agent
+    // cards on the dashboard show as last run time and status.
+    const runTypeMap: Record<
+      string,
+      { count: number; cost: number; last_status: string | null; last_run_at: string | null }
+    > = {};
     let totalCost = 0;
     for (const r of runs) {
       const key = r.agent_type || 'unknown';
-      if (!runTypeMap[key]) runTypeMap[key] = { count: 0, cost: 0 };
+      if (!runTypeMap[key]) {
+        runTypeMap[key] = {
+          count: 0,
+          cost: 0,
+          last_status: r.status ?? null,
+          last_run_at: r.created_at ?? null,
+        };
+      }
       runTypeMap[key].count++;
       runTypeMap[key].cost += Number(r.cost_usd) || 0;
       totalCost += Number(r.cost_usd) || 0;
     }
     const runsByType = Object.entries(runTypeMap)
-      .map(([type, v]) => ({ type, count: v.count, cost: Number(v.cost.toFixed(6)) }))
+      .map(([type, v]) => ({
+        type,
+        count: v.count,
+        cost: Number(v.cost.toFixed(6)),
+        last_status: v.last_status,
+        last_run_at: v.last_run_at,
+      }))
       .sort((a, b) => b.count - a.count);
 
     // ── call_transcripts ──────────────────────────────────────────────────

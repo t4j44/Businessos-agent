@@ -1,16 +1,52 @@
+import { timingSafeEqual } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase'
 import { callAI, MODELS, parseJSON } from '@/lib/ai'
 import { logAgentRun } from '@/lib/log'
 import { findOrCreateContact, logInteraction, updateContactScore } from '@/lib/contacts'
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { sendBrandedEmail, escapeHtml } from '@/lib/resend';
+
+
+// Shared-secret check. Bland does not sign its webhooks, so the secret is read
+// from either a header or a ?secret= query parameter.
+//
+// IMPORTANT: the URL registered in the Bland dashboard must carry the secret,
+// e.g. https://<host>/api/webhooks/bland?secret=<BLAND_WEBHOOK_SECRET>
+//
+// Fails closed: with BLAND_WEBHOOK_SECRET unset, every request is rejected.
+function blandAuthorised(req: Request): boolean {
+  const expected = process.env.BLAND_WEBHOOK_SECRET
+  if (!expected) return false
+
+  const header =
+    req.headers.get('x-bland-secret') ||
+    req.headers.get('x-webhook-secret') ||
+    (req.headers.get('authorization') || '').replace(/^Bearer /, '')
+  const query = new URL(req.url).searchParams.get('secret') || ''
+  const provided = header || query
+  if (!provided) return false
+
+  const a = Buffer.from(provided)
+  const b = Buffer.from(expected)
+  if (a.length !== b.length) {
+    timingSafeEqual(a, a)
+    return false
+  }
+  return timingSafeEqual(a, b)
+}
 
 export async function POST(req: Request) {
+  if (!blandAuthorised(req)) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const auth = req.headers.get('authorization')
   if (auth !== 'Bearer ' + process.env.BLAND_API_KEY) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const body = await req.json()
   const { call_id, from: callerNumber, call_length, transcript, metadata } = body
-  const clientId = metadata?.client_id || '00000000-0000-0000-0000-000000000001'
+  const clientId = metadata?.client_id || TEST_CLIENT_ID
 
   const { data: existing } = await supabaseAdmin
     .from('call_transcripts').select('id')
@@ -77,23 +113,44 @@ export async function POST(req: Request) {
     }
   }
 
-  if (analysis.escalated && process.env.RESEND_API_KEY) {
+  if (analysis.escalated) {
     try {
-      const { Resend } = await import('resend')
-      const resend = new Resend(process.env.RESEND_API_KEY)
       const { data: client } = await supabaseAdmin
         .from('clients').select('contact_email, name')
         .eq('id', clientId).single()
+
       if (client?.contact_email) {
-        await resend.emails.send({
-          from: 'Business OS Alerts <alerts@businessos.ai>',
+        const reason = analysis.escalation_reason || 'Escalation triggered'
+
+        // Through sendBrandedEmail, not a bare Resend client. This is an
+        // operational notice about the client's own account rather than
+        // marketing, so transactional: true — it still carries the postal
+        // address and honours the suppression list, but omits the marketing
+        // unsubscribe copy.
+        const result = await sendBrandedEmail({
+          clientId,
+          transactional: true,
+          from_name: (client.name || 'Business OS') + ' Alerts',
           to: client.contact_email,
           subject: '🚨 Call needs your attention — ' + client.name,
-          html: '<p>A call came in that needs human attention.</p>' +
-                '<p><strong>Reason:</strong> ' + (analysis.escalation_reason || 'Escalation triggered') + '</p>' +
-                '<p><strong>Summary:</strong> ' + analysis.summary + '</p>' +
-                '<p>Log in to your dashboard to review the full transcript.</p>'
+          html:
+            '<p>A call came in that needs human attention.</p>' +
+            '<p><strong>Reason:</strong> ' + escapeHtml(reason) + '</p>' +
+            '<p><strong>Summary:</strong> ' + escapeHtml(analysis.summary || '') + '</p>' +
+            '<p>Log in to your dashboard to review the full transcript.</p>',
+          text: [
+            'A call came in that needs human attention.',
+            '',
+            'Reason: ' + reason,
+            'Summary: ' + (analysis.summary || ''),
+            '',
+            'Log in to your dashboard to review the full transcript.',
+          ].join('\n'),
         })
+
+        if (!result.sent) {
+          console.warn('[bland] escalation alert not sent:', result.skipped || result.error)
+        }
       }
     } catch (e) { console.error('Alert email failed:', e) }
   }

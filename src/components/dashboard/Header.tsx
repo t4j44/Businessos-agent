@@ -7,31 +7,35 @@ interface HeaderProps {
   userInitials?: string;
 }
 
+// Thin chrome bar. The section name sits here as a breadcrumb at 14px — the
+// 32px page title belongs to the page itself, via <PageHeader />.
 export function Header({ title, userInitials = 'U' }: HeaderProps) {
   return (
-    <header className="h-16 flex items-center justify-between px-6 bg-[#0F172A] border-b border-slate-700/50 flex-shrink-0">
-      <h1 className="text-white text-xl font-semibold">{title}</h1>
+    <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-[#1F1F23] bg-[#0A0A0B] px-6">
+      <span className="truncate pl-12 text-sm font-medium text-[#71717A] lg:pl-0">
+        {title}
+      </span>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         {/* AI team active status */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+        <div className="flex items-center gap-2 rounded-full border border-[#10B981]/20 bg-[#10B981]/10 px-2.5 py-1">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#10B981] opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#10B981]" />
           </span>
-          <span className="text-emerald-400 text-xs font-medium hidden sm:block">
-            Your AI team is active
+          <span className="hidden text-xs font-medium text-[#10B981] sm:block">
+            AI team active
           </span>
         </div>
 
-        {/* Notification bell */}
-        <button className="relative p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#2563EB] ring-2 ring-[#0F172A]" />
+        {/* Notifications */}
+        <button className="relative rounded-lg p-2 text-[#71717A] transition-colors hover:bg-[#17171A] hover:text-[#F4F4F5]">
+          <Bell className="h-4 w-4" />
+          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#7C3AED] ring-2 ring-[#0A0A0B]" />
         </button>
 
         {/* User avatar */}
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#2563EB] to-violet-600 flex items-center justify-center text-white text-sm font-semibold cursor-pointer select-none shadow-lg shadow-blue-500/20">
+        <div className="flex h-8 w-8 cursor-pointer select-none items-center justify-center rounded-full border border-[#1F1F23] bg-[#17171A] text-xs font-semibold text-[#A1A1AA] transition-colors hover:text-[#F4F4F5]">
           {userInitials}
         </div>
       </div>

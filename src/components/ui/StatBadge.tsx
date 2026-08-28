@@ -12,7 +12,7 @@ const VARIANTS: Record<StatBadgeVariant, string> = {
   success: 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20',
   warning: 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20',
   danger: 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20',
-  neutral: 'bg-[#27272A] text-[#A1A1AA] border-[#3F3F46]',
+  neutral: 'bg-[#1F1F23] text-[#A1A1AA] border-[#3F3F46]',
 }
 
 const DOTS: Record<StatBadgeVariant, string> = {

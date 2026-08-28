@@ -14,6 +14,12 @@ export default function BriefPage({ params }: { params: { id: string } }) {
     fetchBrief();
   }, [params.id]);
 
+  const formatWeekStart = (value: string | null | undefined) => {
+    if (!value) return 'Unknown';
+    const parsed = new Date(value.length <= 10 ? value + 'T00:00:00' : value);
+    return Number.isNaN(parsed.getTime()) ? 'Unknown' : parsed.toLocaleDateString();
+  };
+
   const fetchBrief = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
@@ -41,27 +47,27 @@ export default function BriefPage({ params }: { params: { id: string } }) {
     alert('Link copied to clipboard!');
   };
 
-  if (loading) return <div className="p-8 text-slate-400">Loading Brief...</div>;
-  if (!brief) return <div className="p-8 text-red-400">Brief not found or you don't have access.</div>;
+  if (loading) return <div className="p-8 text-sm text-[#A1A1AA]">Loading Brief...</div>;
+  if (!brief) return <div className="p-8 text-sm text-[#EF4444]">Brief not found or you don't have access.</div>;
 
   return (
-    <div className="min-h-screen bg-[#0F172A] p-6 text-slate-200">
+    <div className="min-h-screen bg-[#0A0A0B] p-6 text-[#F4F4F5]">
       
       {/* Top Navigation Bar - Hidden in print */}
-      <div className="max-w-4xl mx-auto mb-6 flex justify-between items-center print:hidden border-b border-slate-800 pb-4">
-        <Link href="/dashboard" className="text-slate-400 hover:text-white flex items-center gap-2 text-sm font-medium">
+      <div className="max-w-4xl mx-auto mb-6 flex justify-between items-center print:hidden border-b border-[#1F1F23] pb-4">
+        <Link href="/dashboard" className="text-[#A1A1AA] hover:text-[#F4F4F5] flex items-center gap-2 text-sm font-medium transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </Link>
         <div className="flex gap-3">
           <button 
             onClick={handleShare}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#A1A1AA] bg-transparent hover:text-[#F4F4F5] border border-[#1F1F23] hover:border-[#2A2A30] rounded-lg transition-colors"
           >
             <Share2 className="w-4 h-4" /> Share
           </button>
           <button 
             onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#2563EB] hover:bg-blue-600 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#7C3AED] hover:bg-[#6D28D9] rounded-lg transition-colors"
           >
              <DownloadCloud className="w-4 h-4" /> Download PDF / Print
           </button>
@@ -70,17 +76,19 @@ export default function BriefPage({ params }: { params: { id: string } }) {
 
       <div className="max-w-4xl mx-auto print-area print:text-black">
         {/* Document Container */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl p-8 md:p-12 print:bg-white print:border-none print:shadow-none bg-white">
+        <div className="bg-white border border-[#E4E4E7] rounded-lg p-8 md:p-12 print:border-none">
           
-          <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-slate-200 pb-8 mb-8">
+          <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-[#E4E4E7] pb-8 mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-[#1B2A4A] mb-2">Executive Strategy Brief</h1>
-              <p className="text-slate-500 font-medium">Week Starting: {new Date(brief.week_start_date).toLocaleDateString()}</p>
+              <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-[#18181B] mb-2">Executive Strategy Brief</h1>
+              <p className="text-sm text-[#52525B] font-medium">
+                Week Starting: {formatWeekStart(brief.week_start)}
+              </p>
             </div>
             
             <div className="mt-4 md:mt-0 flex flex-col items-end">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">WARE Score</span>
-              <div className="text-5xl font-black text-[#10B981]">{brief.ware_score}</div>
+              <span className="text-xs font-semibold text-[#71717A] uppercase tracking-wider mb-1">WARE Score</span>
+              <div className="text-5xl font-bold text-[#047857]">{brief.ware_score}</div>
             </div>
           </div>
 
@@ -89,7 +97,51 @@ export default function BriefPage({ params }: { params: { id: string } }) {
             dangerouslySetInnerHTML={{ __html: brief.brief_html }}
           />
 
-          <div className="mt-12 pt-8 border-t border-slate-200 text-center text-slate-500 text-sm font-medium">
+          {/* Nightwatch writes intelligence_report_json onto the week's brief. */}
+          <div className="mt-10 pt-8 border-t border-[#E4E4E7]">
+            <h2 className="text-lg font-semibold text-[#18181B] mb-3">Intelligence Briefing</h2>
+            {brief.intelligence_report_json ? (
+              <div className="space-y-4 text-sm text-[#3F3F46]">
+                {brief.intelligence_report_json.executive_summary && (
+                  <p className="leading-relaxed">{brief.intelligence_report_json.executive_summary}</p>
+                )}
+
+                {brief.intelligence_report_json.priority_alert && (
+                  <p className="rounded-lg border border-[#B91C1C]/30 bg-[#B91C1C]/5 px-3 py-2 font-medium text-[#B91C1C]">
+                    Priority alert: {brief.intelligence_report_json.priority_alert}
+                  </p>
+                )}
+
+                {([
+                  ['Competitor moves', brief.intelligence_report_json.competitor_moves],
+                  ['Audience insights', brief.intelligence_report_json.audience_insights],
+                  ['Trend opportunities', brief.intelligence_report_json.trend_opportunities],
+                ] as [string, string[] | undefined][])
+                  .filter(([, items]) => Array.isArray(items) && items.length > 0)
+                  .map(([label, items]) => (
+                    <div key={label}>
+                      <p className="font-semibold text-[#18181B]">{label}</p>
+                      <ul className="mt-1 list-disc pl-5 space-y-1">
+                        {items!.map((item, i) => <li key={i}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ))}
+
+                {brief.intelligence_report_json.weekly_strategy_suggestion && (
+                  <p>
+                    <span className="font-semibold text-[#18181B]">This week: </span>
+                    {brief.intelligence_report_json.weekly_strategy_suggestion}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-[#71717A]">
+                No intelligence data yet — Nightwatch attaches its overnight findings here.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-12 pt-8 border-t border-[#E4E4E7] text-center text-[#52525B] text-sm font-medium">
              Prepared algorithmically by Business OS AI.
           </div>
         </div>

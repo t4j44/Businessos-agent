@@ -10,6 +10,7 @@ import {
   TrendingUp, AlertTriangle, MessageSquare, Loader2,
 } from 'lucide-react';
 import * as tokens from '@/lib/design-tokens';
+import { ResponseCard } from '@/components/dashboard/ResponseCard';
 
 type Sentiment = 'praise' | 'neutral' | 'complaint';
 
@@ -44,7 +45,7 @@ function Stars({ rating }: { rating: number }) {
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-[#27272A] bg-[#111113] ${className}`}>{children}</div>
+    <div className={`rounded-xl border border-[#1F1F23] bg-[#111113] ${className}`}>{children}</div>
   );
 }
 
@@ -53,8 +54,8 @@ function TrendTooltip({ active, payload, label }: any) {
   const row = payload[0]?.payload;
   if (!row) return null;
   return (
-    <div className="rounded-lg border border-[#27272A] bg-[#18181B] px-3 py-2 shadow-lg">
-      <p className="text-xs font-medium text-[#FAFAFA]">
+    <div className="rounded-lg border border-[#1F1F23] bg-[#17171A] px-3 py-2">
+      <p className="text-xs font-medium text-[#F4F4F5]">
         {label}: {row.your_rating ?? '—'} stars, {row.review_count} review
         {row.review_count === 1 ? '' : 's'}
       </p>
@@ -174,7 +175,9 @@ export default function ReviewsPage() {
       setData((prev: any) => ({
         ...prev,
         reviews: prev.reviews.map((r: any) =>
-          r.id === review.id ? { ...r, response_text: json.response_text } : r,
+          r.id === review.id
+            ? { ...r, response_text: json.response ?? json.response_text ?? r.response_text }
+            : r,
         ),
       }));
     } catch (err: any) {
@@ -186,15 +189,15 @@ export default function ReviewsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#09090B] p-6 space-y-5">
+      <div className="min-h-screen bg-[#0A0A0B] p-6 space-y-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-32 animate-pulse rounded-xl border border-[#27272A] bg-[#111113]" />
+            <div key={i} className="h-32 animate-pulse rounded-xl border border-[#1F1F23] bg-[#111113]" />
           ))}
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <div className="h-80 animate-pulse rounded-xl border border-[#27272A] bg-[#111113] lg:col-span-7" />
-          <div className="h-80 animate-pulse rounded-xl border border-[#27272A] bg-[#111113] lg:col-span-5" />
+          <div className="h-80 animate-pulse rounded-xl border border-[#1F1F23] bg-[#111113] lg:col-span-7" />
+          <div className="h-80 animate-pulse rounded-xl border border-[#1F1F23] bg-[#111113] lg:col-span-5" />
         </div>
       </div>
     );
@@ -202,7 +205,7 @@ export default function ReviewsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#09090B] p-6">
+      <div className="min-h-screen bg-[#0A0A0B] p-6">
         <Card>
           <div className="p-6">
             <p className="text-sm text-[#EF4444]">Couldn&apos;t load reviews — {error}</p>
@@ -217,14 +220,14 @@ export default function ReviewsPage() {
   // ── No reviews collected yet ─────────────────────────────────────────────
   if (data.is_empty) {
     return (
-      <div className="min-h-screen bg-[#09090B] p-6">
+      <div className="min-h-screen bg-[#0A0A0B] p-6">
         <Card>
           <div className="flex flex-col items-center gap-4 px-6 py-20 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#6366F1]/15">
-              <Star className="h-7 w-7 text-[#6366F1]" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#7C3AED]/15">
+              <Star className="h-7 w-7 text-[#7C3AED]" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-[#FAFAFA]">
+              <h2 className="text-lg font-semibold text-[#F4F4F5]">
                 No reviews yet. Your agents will monitor and respond automatically.
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm text-[#71717A]">
@@ -239,13 +242,13 @@ export default function ReviewsPage() {
   }
 
   return (
-    <div className="min-h-screen space-y-5 bg-[#09090B] p-6">
+    <div className="min-h-screen space-y-5 bg-[#0A0A0B] p-6">
 
       {/* ── TOP ROW ─────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="p-5">
           <p className={tokens.type.metricLabel}>Average Rating</p>
-          <p className={`mt-3 ${tokens.type.metric} text-[#FAFAFA]`}>{s.avg_rating}</p>
+          <p className={`mt-3 ${tokens.type.metric} text-[#F4F4F5]`}>{s.avg_rating}</p>
           <div className="mt-2 flex items-center gap-2">
             <Stars rating={s.avg_rating} />
             <span className="text-xs text-[#71717A]">{s.total_reviews} reviews</span>
@@ -288,13 +291,13 @@ export default function ReviewsPage() {
         <Card className="lg:col-span-7">
           {!sentimentFilter ? (
             <>
-              <div className="border-b border-[#27272A] px-5 py-4">
+              <div className="border-b border-[#1F1F23] px-5 py-4">
                 <h2 className={tokens.type.cardTitle}>Sentiment Over Time</h2>
                 <p className="mt-0.5 text-xs text-[#71717A]">
                   Your rating vs industry average, last 12 weeks
                 </p>
                 {!data.trend_has_history && (
-                  <p className="mt-2 inline-block rounded-md border border-[#27272A] bg-[#18181B] px-2 py-1 text-[11px] font-medium text-[#A1A1AA]">
+                  <p className="mt-2 inline-block rounded-md border border-[#1F1F23] bg-[#17171A] px-2 py-1 text-[11px] font-medium text-[#A1A1AA]">
                     Not enough history yet — the trend fills in as reviews arrive
                   </p>
                 )}
@@ -303,7 +306,7 @@ export default function ReviewsPage() {
                 <div style={{ width: '100%', height: 268 }}>
                   <ResponsiveContainer>
                     <LineChart data={trendData} margin={{ top: 8, right: 12, bottom: 4, left: -18 }}>
-                      <CartesianGrid stroke="#27272A" strokeDasharray="3 3" vertical={false} />
+                      <CartesianGrid stroke="#1F1F23" strokeDasharray="3 3" vertical={false} />
                       <XAxis
                         dataKey="week" tickLine={false} axisLine={false}
                         tick={{ fill: '#71717A', fontSize: 11 }} interval="preserveStartEnd"
@@ -328,7 +331,7 @@ export default function ReviewsPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="mt-3 flex items-center gap-4 border-t border-[#27272A] pt-3">
+                <div className="mt-3 flex items-center gap-4 border-t border-[#1F1F23] pt-3">
                   <span className="flex items-center gap-1.5 text-xs text-[#A1A1AA]">
                     <span className="h-0.5 w-4 rounded bg-[#10B981]" /> Your Rating
                   </span>
@@ -340,7 +343,7 @@ export default function ReviewsPage() {
             </>
           ) : (
             <>
-              <div className="flex items-center justify-between border-b border-[#27272A] px-5 py-4">
+              <div className="flex items-center justify-between border-b border-[#1F1F23] px-5 py-4">
                 <div className="flex items-center gap-2.5">
                   <span
                     className="h-2.5 w-2.5 rounded-full"
@@ -352,7 +355,7 @@ export default function ReviewsPage() {
                 </div>
                 <button
                   onClick={() => setSentimentFilter(null)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#27272A] px-2.5 py-1.5 text-xs font-medium text-[#A1A1AA] transition-colors hover:bg-[#18181B]"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#1F1F23] px-2.5 py-1.5 text-xs font-medium text-[#A1A1AA] transition-colors hover:bg-[#17171A]"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" /> Back to trend
                 </button>
@@ -362,7 +365,7 @@ export default function ReviewsPage() {
                   <p className="py-8 text-center text-sm text-[#71717A]">No reviews in this group.</p>
                 ) : (
                   sentimentReviews.map((r) => (
-                    <div key={r.id} className="rounded-lg border border-[#27272A] bg-[#18181B] p-4">
+                    <div key={r.id} className="rounded-lg border border-[#1F1F23] bg-[#17171A] p-4">
                       <div className="flex items-center gap-2">
                         <Stars rating={r.star_rating} />
                         <span className="text-xs text-[#71717A]">{r.platform}</span>
@@ -378,7 +381,7 @@ export default function ReviewsPage() {
 
         {/* RIGHT 45% — donut */}
         <Card className="lg:col-span-5">
-          <div className="border-b border-[#27272A] px-5 py-4">
+          <div className="border-b border-[#1F1F23] px-5 py-4">
             <h2 className={tokens.type.cardTitle}>What customers say</h2>
             <p className="mt-0.5 text-xs text-[#71717A]">Click a segment to see those reviews</p>
           </div>
@@ -408,12 +411,12 @@ export default function ReviewsPage() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold tracking-tight text-[#FAFAFA]">{s.avg_rating}</span>
+                <span className="text-3xl font-bold tracking-tight text-[#F4F4F5]">{s.avg_rating}</span>
                 <span className="text-[11px] font-medium text-[#71717A]">overall</span>
               </div>
             </div>
 
-            <div className="mt-4 space-y-2 border-t border-[#27272A] pt-4">
+            <div className="mt-4 space-y-2 border-t border-[#1F1F23] pt-4">
               {(['praise', 'neutral', 'complaint'] as Sentiment[]).map((key) => {
                 const b = data.sentiment_breakdown;
                 const value = b[key];
@@ -423,8 +426,8 @@ export default function ReviewsPage() {
                     onClick={() => setSentimentFilter(value > 0 ? key : null)}
                     disabled={value === 0}
                     className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors ${
-                      value > 0 ? 'hover:bg-[#18181B]' : 'opacity-40'
-                    } ${sentimentFilter === key ? 'bg-[#18181B]' : ''}`}
+                      value > 0 ? 'hover:bg-[#17171A]' : 'opacity-40'
+                    } ${sentimentFilter === key ? 'bg-[#17171A]' : ''}`}
                   >
                     <span className="flex items-center gap-2">
                       <span
@@ -433,7 +436,7 @@ export default function ReviewsPage() {
                       />
                       <span className="text-sm text-[#A1A1AA]">{SENTIMENT_LABEL[key]}</span>
                     </span>
-                    <span className="text-sm font-medium tabular-nums text-[#FAFAFA]">
+                    <span className="text-sm font-medium tabular-nums text-[#F4F4F5]">
                       {b[`${key}_pct`]}%
                     </span>
                   </button>
@@ -448,13 +451,13 @@ export default function ReviewsPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
 
         <Card className="lg:col-span-8">
-          <div className="border-b border-[#27272A] px-5 pt-4">
+          <div className="border-b border-[#1F1F23] px-5 pt-4">
             <div className="flex items-center justify-between">
               <h2 className={tokens.type.cardTitle}>Review Queue</h2>
               {themeFilter && (
                 <button
                   onClick={() => setThemeFilter(null)}
-                  className="rounded-full border border-[#6366F1]/30 bg-[#6366F1]/10 px-2.5 py-1 text-[11px] font-medium text-[#6366F1]"
+                  className="rounded-full border border-[#7C3AED]/30 bg-[#7C3AED]/10 px-2.5 py-1 text-[11px] font-medium text-[#7C3AED]"
                 >
                   {themeFilter} ✕
                 </button>
@@ -470,7 +473,7 @@ export default function ReviewsPage() {
                     onClick={() => setPlatformTab(p)}
                     className={`-mb-px whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-medium transition-colors ${
                       active
-                        ? 'border-[#6366F1] text-[#FAFAFA]'
+                        ? 'border-[#7C3AED] text-[#F4F4F5]'
                         : 'border-transparent text-[#71717A] hover:text-[#A1A1AA]'
                     }`}
                   >
@@ -496,10 +499,10 @@ export default function ReviewsPage() {
                 const isOpen = expanded === r.id;
                 const isBusy = busyId === r.id;
                 return (
-                  <div key={r.id} className="rounded-lg border border-[#27272A] bg-[#18181B]">
+                  <div key={r.id} className="rounded-lg border border-[#1F1F23] bg-[#17171A]">
                     <div className="p-4">
                       <div className="flex items-center gap-2.5">
-                        <span className="rounded-md border border-[#27272A] bg-[#111113] px-2 py-0.5 text-[11px] font-medium text-[#A1A1AA]">
+                        <span className="rounded-md border border-[#1F1F23] bg-[#111113] px-2 py-0.5 text-[11px] font-medium text-[#A1A1AA]">
                           {r.platform}
                         </span>
                         <Stars rating={r.star_rating} />
@@ -513,7 +516,7 @@ export default function ReviewsPage() {
 
                       <button
                         onClick={() => setExpanded(isOpen ? null : r.id)}
-                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#6366F1] transition-colors hover:text-[#818CF8]"
+                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#7C3AED] transition-colors hover:text-[#A78BFA]"
                       >
                         {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                         {isOpen ? 'Hide' : 'View'} AI-drafted response
@@ -521,18 +524,16 @@ export default function ReviewsPage() {
                     </div>
 
                     {isOpen && (
-                      <div className="border-t border-[#27272A] p-4">
+                      <div className="border-t border-[#1F1F23] p-4">
                         {editingId === r.id ? (
                           <textarea
                             value={editText}
                             onChange={(e) => setEditText(e.target.value)}
                             rows={5}
-                            className="w-full resize-none rounded-lg border border-[#27272A] bg-[#111113] px-3 py-2.5 text-sm text-[#FAFAFA] focus:border-[#6366F1] focus:outline-none"
+                            className="w-full resize-none rounded-lg border border-[#1F1F23] bg-[#111113] px-3 py-2.5 text-sm text-[#F4F4F5] focus:border-[#7C3AED] focus:outline-none"
                           />
                         ) : (
-                          <p className={tokens.type.body}>
-                            {r.response_text || 'No response drafted yet.'}
-                          </p>
+                          <ResponseCard text={r.response_text} />
                         )}
 
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -551,7 +552,7 @@ export default function ReviewsPage() {
                               </button>
                               <button
                                 onClick={() => setEditingId(null)}
-                                className="rounded-lg border border-[#27272A] px-3 py-2 text-xs font-medium text-[#A1A1AA] transition-colors hover:bg-[#27272A]"
+                                className="rounded-lg border border-[#1F1F23] px-3 py-2 text-xs font-medium text-[#A1A1AA] transition-colors hover:bg-[#1F1F23]"
                               >
                                 Cancel
                               </button>
@@ -571,14 +572,14 @@ export default function ReviewsPage() {
                                   setEditingId(r.id);
                                   setEditText(r.response_text || '');
                                 }}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-[#27272A] px-3 py-2 text-xs font-medium text-[#A1A1AA] transition-colors hover:bg-[#27272A]"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-[#1F1F23] px-3 py-2 text-xs font-medium text-[#A1A1AA] transition-colors hover:bg-[#1F1F23]"
                               >
                                 <Pencil className="h-3.5 w-3.5" /> Edit
                               </button>
                               <button
                                 onClick={() => regenerate(r)}
                                 disabled={isBusy}
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#6366F1] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#4F46E5] disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#7C3AED] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#6D28D9] disabled:opacity-50"
                               >
                                 {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                 Regenerate
@@ -597,7 +598,7 @@ export default function ReviewsPage() {
 
         {/* Complaint Intelligence */}
         <Card className="h-fit lg:col-span-4">
-          <div className="border-b border-[#27272A] px-5 py-4">
+          <div className="border-b border-[#1F1F23] px-5 py-4">
             <h2 className={tokens.type.cardTitle}>Complaint Intelligence</h2>
             <p className="mt-0.5 text-xs text-[#71717A]">Click a theme to filter the queue</p>
           </div>
@@ -615,8 +616,8 @@ export default function ReviewsPage() {
                       onClick={() => setThemeFilter(active ? null : t.theme)}
                       className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
                         active
-                          ? 'border-[#6366F1]/40 bg-[#6366F1]/10'
-                          : 'border-[#27272A] bg-[#18181B] hover:border-[#3F3F46]'
+                          ? 'border-[#7C3AED]/40 bg-[#7C3AED]/10'
+                          : 'border-[#1F1F23] bg-[#17171A] hover:border-[#3F3F46]'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -628,7 +629,7 @@ export default function ReviewsPage() {
                           {t.count}
                         </span>
                       </div>
-                      <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#27272A]">
+                      <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#1F1F23]">
                         <div
                           className="h-full rounded-full bg-[#EF4444]"
                           style={{ width: `${(t.count / max) * 100}%` }}

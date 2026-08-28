@@ -1,7 +1,15 @@
 import { createRouteClient } from '@/lib/supabase-route';
 import { NextResponse } from 'next/server';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
     const supabase = await createRouteClient();
@@ -22,6 +30,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .from('approvals_queue')
       .select('*')
       .eq('id', id)
+      .eq('client_id', clientId)
       .single();
 
     // Use mock data locally if DB misses for demo
@@ -32,7 +41,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     await supabase
       .from('approvals_queue')
       .update({ status: action })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('client_id', clientId);
 
     // Trigger downstream n8n webhook
     const n8nWebhookBase = process.env.N8N_WEBHOOK_BASE_URL;

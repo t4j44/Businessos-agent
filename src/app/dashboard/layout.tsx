@@ -8,6 +8,9 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Home',
   '/dashboard/my-business': 'My Business',
   '/dashboard/calls': 'Calls',
+  '/dashboard/hunter': 'Hunter',
+  '/dashboard/receptionist': 'Receptionist',
+  '/dashboard/scheduler': 'Scheduler',
   '/dashboard/reviews': 'Reviews',
   '/dashboard/invoices': 'Invoices',
   '/dashboard/leads': 'Outreach',
@@ -23,7 +26,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const title = PAGE_TITLES[pathname] ?? 'Dashboard';
 
   return (
-    <div className="flex h-screen bg-[#09090B] overflow-hidden">
+    <div className="flex h-screen bg-[#0A0A0B] overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header title={title} />

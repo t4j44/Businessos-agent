@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { resolveClientId } from '@/lib/session';
 
 // The chase sequence has 5 steps, but the funnel presents Sent → 1..4 → Paid,
 // so step 5 (final notice) is folded into the "Step 4 Call" stage.
@@ -27,7 +28,7 @@ function stageOf(inv: any): string {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = searchParams.get('client_id') || TEST_CLIENT_ID;
+    const client_id = (await resolveClientId(req)).clientId;
 
     const { data: rows, error } = await supabaseAdmin
       .from('invoices')

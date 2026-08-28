@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
-import { supabaseServer } from '../../../../lib/supabase';
+import { supabaseServer } from '@/lib/supabase';
+import { callAI, MODELS, parseJSON } from '@/lib/ai';
+import { retrieveContext } from '@/lib/embeddings';
+import { logAgentRun } from '@/lib/log';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -16,71 +19,36 @@ interface Message {
   content: string;
 }
 
-interface RagChunk {
-  content: string;
-  similarity: number;
-}
+type Classification = 'qualified_prospect' | 'support' | 'browser';
 
-async function embedText(text: string): Promise<number[]> {
-  const apiKey = process.env.VOYAGE_API_KEY;
-  if (!apiKey) throw new Error('VOYAGE_API_KEY not configured');
+const CLASSIFICATIONS: Classification[] = ['qualified_prospect', 'support', 'browser'];
 
-  const res = await fetch('https://api.voyageai.com/v1/embeddings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: 'voyage-3-lite', input: [text] }),
-  });
-  if (!res.ok) throw new Error(`Voyage AI error: ${res.status}`);
-  const data = await res.json();
-  return data.data[0].embedding as number[];
-}
+// Appointment businesses (dental, salon) phrase intent as booking and treatment
+// language, not SaaS trial language, so both vocabularies are represented.
+const BUY_SIGNALS = [
+  'price', 'pricing', 'cost', 'how much', 'quote', 'plan', 'package',
+  'book', 'booking', 'appointment', 'schedule', 'availability', 'available',
+  'opening', 'slot', 'consultation', 'consult', 'sign up', 'get started',
+  'trial', 'demo', 'purchase', 'buy', 'new patient', 'new client',
+  'insurance', 'financing', 'payment plan', 'walk in', 'walk-in',
+];
 
-async function retrieveChunks(clientId: string, embedding: number[], topK = 5): Promise<RagChunk[]> {
-  const { data, error } = await supabaseServer.rpc('match_rag_chunks', {
-    query_embedding: embedding,
-    match_client_id: clientId,
-    match_count: topK,
-  });
-  if (error) throw new Error(`RAG retrieval error: ${error.message}`);
-  return (data ?? []) as RagChunk[];
-}
+const SUPPORT_SIGNALS = [
+  'problem', 'issue', 'error', 'broken', 'not working', 'bug', 'support',
+  'complaint', 'refund', 'cancel', 'reschedule', 'late', 'wrong',
+  'hurt', 'pain', 'sore', 'reaction', 'unhappy', 'disappointed',
+];
 
-async function callClaude(systemPrompt: string, messages: Message[]): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
+// Deterministic fallback. Only ever sees the visitor's own words — the earlier
+// version fed the assistant's reply in too, and since the assistant is told to
+// invite bookings, almost every conversation scored as a qualified prospect.
+function classifyByKeyword(visitorMessage: string): Classification {
+  const lower = visitorMessage.toLowerCase();
+  const hasSupport = SUPPORT_SIGNALS.some((s) => lower.includes(s));
+  const hasBuy = BUY_SIGNALS.some((s) => lower.includes(s));
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 512,
-      system: systemPrompt,
-      messages,
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Claude error ${res.status}: ${err}`);
-  }
-  const data = await res.json();
-  return data.content[0].text as string;
-}
-
-function classifyResponse(text: string): 'qualified_prospect' | 'support' | 'browser' {
-  const lower = text.toLowerCase();
-  const buySignals = ['price', 'cost', 'plan', 'subscribe', 'sign up', 'get started', 'trial', 'demo', 'book', 'schedule', 'purchase', 'buy'];
-  const supportSignals = ['problem', 'issue', 'error', 'broken', 'help', 'not working', 'bug', 'support'];
-
-  const hasBuy = buySignals.some(s => lower.includes(s));
-  const hasSupport = supportSignals.some(s => lower.includes(s));
-
-  if (hasBuy && !hasSupport) return 'qualified_prospect';
   if (hasSupport) return 'support';
+  if (hasBuy) return 'qualified_prospect';
   return 'browser';
 }
 
@@ -95,69 +63,136 @@ async function checkBudget(clientId: string): Promise<boolean> {
   return data.tokens_used < data.token_limit;
 }
 
-async function logAgentRun(
-  clientId: string,
-  sessionId: string,
-  userMessage: string,
-  response: string,
-  classification: string,
-  tokensUsed: number,
-) {
-  await supabaseServer.from('agent_runs').insert({
-    client_id: clientId,
-    agent_type: 'receptionist',
-    input_text: userMessage,
-    output_text: response,
-    metadata: { session_id: sessionId, classification, tokens_used: tokensUsed },
-    status: 'completed',
-  });
+// Turns whatever the brand profile holds into the system prompt's business
+// briefing. Only the fields that are actually populated make it in, so a
+// half-filled profile does not produce a prompt full of "unknown".
+function buildBrandBriefing(brand: any, client: any): string {
+  const lines: string[] = [];
 
-  // Increment token counter — ignore failure (non-critical)
-  const { error: incrementError } = await supabaseServer.rpc('increment_api_usage', {
-    p_client_id: clientId,
-    p_tokens: tokensUsed,
-  });
-  if (incrementError) console.error('increment_api_usage failed:', incrementError);
+  const push = (label: string, value: unknown) => {
+    if (value === null || value === undefined) return;
+    const text = String(value).trim();
+    if (text) lines.push(`${label}: ${text}`);
+  };
+
+  push('Business', brand?.company_name || client?.name);
+  push('Tagline', brand?.tagline);
+  push('About', brand?.description);
+  push('What they offer', brand?.value_proposition);
+  push('Who they serve', brand?.icp_summary);
+  push('Location', brand?.location);
+  push('Industry', client?.industry);
+
+  const products = Array.isArray(brand?.products_json) ? brand.products_json : [];
+  if (products.length) {
+    const listed = products
+      .map((p: any) => (p?.name ? `- ${p.name}${p.description ? `: ${p.description}` : ''}` : null))
+      .filter(Boolean)
+      .join('\n');
+    if (listed) lines.push(`Services offered:\n${listed}`);
+  }
+
+  return lines.join('\n');
 }
 
-// ── Dev test client constants ────────────────────────────────────────────────
-
-const DEV_SYSTEM_PROMPT = `You are the AI receptionist for DevStack, a developer tools platform.
-
-DevStack helps engineering teams design, test, and ship APIs 10x faster.
-
-Products:
-- API Builder: Visual API design with auto-generated SDKs for 12 languages
-- Analytics Dashboard: Real-time monitoring, P95/P99 latency, error rates
-- Team Collaboration: Shared workspaces, PR-style API reviews, role-based access
-
-Pricing:
-- Starter: $49/month — 5 projects, basic analytics, 10K API calls/day, email support
-- Pro: $149/month — unlimited projects, real-time analytics, 500K calls/day, team collab
-- Enterprise: Custom — SSO, SLA, unlimited calls, audit logs, custom integrations
-
-Free trial available. No credit card required.
-
-Tone: Technical, direct, confident. You speak to developers. Be concise (2-3 sentences max).
-If someone asks about pricing, demos, or seems interested in buying, encourage a free trial.`;
-
-function getDemoResponse(message: string): string {
-  const lower = message.toLowerCase();
-  if (lower.includes('price') || lower.includes('cost') || lower.includes('how much') || lower.includes('plan')) {
-    return "Our plans start at $49/month for Starter. Pro is $149/month with unlimited projects and real-time analytics. Enterprise pricing is custom — want to start a free trial?";
-  }
-  if (lower.includes('demo') || lower.includes('call') || lower.includes('schedule') || lower.includes('meeting')) {
-    return "I'd love to arrange a demo! Our team can walk you through the API Builder, Analytics Dashboard, and Team Collaboration features. What time works best for you?";
-  }
-  if (lower.includes('help') || lower.includes('problem') || lower.includes('issue') || lower.includes('not work') || lower.includes('broken') || lower.includes('error') || lower.includes('support')) {
-    return "I can connect you with our support team right away. For immediate help, our docs at docs.devstack.io cover most common issues. What are you experiencing?";
-  }
-  return "Great question! DevStack helps teams ship APIs 10x faster — visual API design, real-time monitoring, and team collaboration built in. Anything specific I can help with?";
+// Phone can live in either place depending on whether the profile came from
+// onboarding (clients.contact_phone) or brand-scout (contact_info JSONB).
+function resolvePhone(brand: any, client: any): string | null {
+  const info = brand?.contact_info;
+  const fromBrand =
+    info && typeof info === 'object' ? info.phone || info.telephone || info.tel : null;
+  const phone = fromBrand || client?.contact_phone;
+  const text = phone ? String(phone).trim() : '';
+  return text || null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+function buildSystemPrompt(
+  companyName: string,
+  briefing: string,
+  tone: string,
+  ragContext: string,
+): string {
+  return [
+    `You are the AI receptionist for ${companyName}. You answer visitors on the business's website.`,
+    '',
+    'BUSINESS DETAILS — this is the only business you represent:',
+    briefing || `${companyName} (no further detail on file).`,
+    '',
+    `VOICE: ${tone}`,
+    '',
+    ragContext
+      ? `REFERENCE MATERIAL from ${companyName}'s own content — prefer this over anything you assume:\n"""\n${ragContext}\n"""\n`
+      : '',
+    'RULES:',
+    '- Keep replies to 3 sentences or fewer. You are a chat widget, not a brochure.',
+    '- Never invent prices, availability, opening hours, or clinical/treatment advice. If it is not in the details above, say you will have the team confirm.',
+    '- Never diagnose a medical or dental problem. Point those visitors to booking a proper appointment.',
+    '- Only discuss this business. Decline unrelated topics politely.',
+    '- If the visitor shows interest in an appointment, invite them to book warmly and without pressure.',
+    '',
+    'Classify the visitor from THEIR message only, ignoring your own reply:',
+    '- "qualified_prospect": asking about booking, availability, prices, services, or becoming a new patient/client.',
+    '- "support": an existing customer with a problem, complaint, or a change to an existing appointment.',
+    '- "browser": general curiosity, research, or small talk.',
+    '',
+    'Return ONLY valid JSON: { "reply": "string", "classification": "qualified_prospect" | "support" | "browser" }',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+// callAI takes a single system + user pair, so prior turns are folded into the
+// user block rather than sent as a native message array.
+function buildUserBlock(history: Message[], message: string): string {
+  const transcript = history
+    .slice(-10)
+    .map((m) => `${m.role === 'user' ? 'Visitor' : 'Receptionist'}: ${m.content}`)
+    .join('\n');
+
+  return [
+    transcript ? `Conversation so far:\n${transcript}\n` : '',
+    `The visitor just said: "${message}"`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+
+// ── Rate limiting ──────────────────────────────────────────────────────────
+// These endpoints are anonymous by design (they run on customers' own sites),
+// so throttling replaces authentication as the spend control.
+//
+// NOTE: this Map lives in the serverless instance's memory. It resets on every
+// cold start and is not shared between concurrent instances, so the real ceiling
+// is higher than the numbers below. A durable store (Upstash/Redis) is the
+// eventual fix; this stops the trivial abuse case today.
+const HOUR_MS = 60 * 60 * 1000;
+const MAX_PER_SESSION = 20;
+const MAX_PER_CLIENT = 200;
+const MAX_MESSAGE_CHARS = 2000;
+
+const hits = new Map<string, number[]>();
+
+function rateLimited(key: string, limit: number): boolean {
+  const now = Date.now();
+  const window = (hits.get(key) ?? []).filter((t) => now - t < HOUR_MS);
+  if (window.length >= limit) {
+    hits.set(key, window);
+    return true;
+  }
+  window.push(now);
+  hits.set(key, window);
+  return false;
+}
 
 export async function POST(req: Request) {
+  if (!process.env.OPENROUTER_API_KEY) {
+    return NextResponse.json(
+      { error: 'OPENROUTER_API_KEY missing from .env.local' },
+      { status: 503, headers: CORS },
+    );
+  }
+
   try {
     const body = await req.json();
     const { client_id, session_id, message, conversation_history = [] } = body as {
@@ -167,6 +202,14 @@ export async function POST(req: Request) {
       conversation_history: Message[];
     };
 
+    // Cap the inbound message before it reaches the model.
+    if (typeof message === 'string' && message.length > MAX_MESSAGE_CHARS) {
+      return NextResponse.json(
+        { error: 'Message too long.' },
+        { status: 400, headers: CORS },
+      );
+    }
+
     if (!client_id || !session_id || !message) {
       return NextResponse.json(
         { error: 'client_id, session_id, and message are required' },
@@ -174,33 +217,46 @@ export async function POST(req: Request) {
       );
     }
 
-    // ── Dev test client: skip all DB/Voyage lookups ──────────────────────────
-    if (client_id === 'dev-test-client') {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        const response = getDemoResponse(message);
-        const classification = classifyResponse(message + ' ' + response);
-        return NextResponse.json({ response, classification, session_id }, { headers: CORS });
-      }
-      const msgs: Message[] = [
-        ...(conversation_history as Message[]).slice(-10),
-        { role: 'user', content: message },
-      ];
-      const responseText = await callClaude(DEV_SYSTEM_PROMPT, msgs);
-      const classification = classifyResponse(message + ' ' + responseText);
-      return NextResponse.json({ response: responseText, classification, session_id }, { headers: CORS });
+    // Per-session then per-client, cheapest check first.
+    if (rateLimited('s:' + session_id, MAX_PER_SESSION)) {
+      return NextResponse.json(
+        { error: 'Too many messages. Try again later.' },
+        { status: 429, headers: { ...CORS, 'Retry-After': '3600' } },
+      );
+    }
+    if (rateLimited('c:' + client_id, MAX_PER_CLIENT)) {
+      return NextResponse.json(
+        { error: 'This assistant is temporarily unavailable.' },
+        { status: 429, headers: { ...CORS, 'Retry-After': '3600' } },
+      );
     }
 
-    // 1. Fetch brand config and verify client exists
+    // Never spend tokens for a client that does not exist or is not active.
+    const { data: widgetClient } = await supabaseServer
+      .from('clients')
+      .select('id, status')
+      .eq('id', client_id)
+      .maybeSingle();
+
+    if (!widgetClient || widgetClient.status === 'cancelled') {
+      return NextResponse.json(
+        { error: 'Unknown client.' },
+        { status: 404, headers: CORS },
+      );
+    }
+
+    // 1 — Brand DNA and client record.
     const [profileRes, clientRes] = await Promise.all([
       supabaseServer
         .from('brand_profiles')
-        .select('company_name, greeting_text, booking_url')
+        .select(
+          'company_name, tone_description, icp_summary, products_json, value_proposition, tagline, description, contact_info, location, greeting_text, booking_url',
+        )
         .eq('client_id', client_id)
         .maybeSingle(),
       supabaseServer
         .from('clients')
-        .select('name, plan_tier')
+        .select('name, plan_tier, industry, contact_phone')
         .eq('id', client_id)
         .maybeSingle(),
     ]);
@@ -209,74 +265,116 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404, headers: CORS });
     }
 
-    const companyName = profileRes.data?.company_name ?? clientRes.data.name ?? 'us';
-    const bookingUrl = profileRes.data?.booking_url ?? null;
+    const brand = profileRes.data;
+    const client = clientRes.data;
+    const companyName = brand?.company_name || client.name || 'us';
+    const tone =
+      brand?.tone_description ||
+      'warm, professional, and welcoming — like a friendly front-desk receptionist.';
 
-    // 2. Check api_usage budget
-    const withinBudget = await checkBudget(client_id);
-    if (!withinBudget) {
+    // 2 — Budget.
+    if (!(await checkBudget(client_id))) {
       return NextResponse.json(
-        { response: `I'm sorry, I'm unable to process more requests right now. Please contact ${companyName} directly.`, classification: 'browser', session_id },
+        {
+          response: `I'm sorry, I can't take more questions right now. Please contact ${companyName} directly.`,
+          classification: 'browser',
+          session_id,
+        },
         { headers: CORS },
       );
     }
 
-    // 3. Embed the user message
-    let ragContext = '';
+    // 3 — RAG. Best-effort: a client with no indexed content still gets a reply
+    //     built from the brand profile alone.
+    const ragContext = await retrieveContext(message, client_id);
+
+    // 4 — Generate. The model returns reply + classification together so the
+    //     label reflects intent rather than keyword presence.
+    const systemPrompt = buildSystemPrompt(companyName, buildBrandBriefing(brand, client), tone, ragContext);
+    const userBlock = buildUserBlock(conversation_history, message);
+
+    const ai = await callAI({
+      model: MODELS.SONNET,
+      system: systemPrompt,
+      user: userBlock,
+      maxTokens: 500,
+    });
+
+    let responseText: string;
+    let classification: Classification;
+
     try {
-      const embedding = await embedText(message);
-      const chunks = await retrieveChunks(client_id, embedding);
-      if (chunks.length > 0) {
-        ragContext = chunks.map((c: RagChunk) => c.content).join('\n\n---\n\n');
-      }
+      const parsed = parseJSON(ai.text);
+      responseText = String(parsed.reply || '').trim();
+      classification = CLASSIFICATIONS.includes(parsed.classification)
+        ? parsed.classification
+        : classifyByKeyword(message);
+      if (!responseText) throw new Error('empty reply field');
     } catch {
-      // RAG is best-effort — continue without it if Voyage AI or DB fails
+      // Malformed JSON must not cost the visitor their answer — use the raw
+      // text and fall back to keyword classification.
+      responseText = ai.text.trim();
+      classification = classifyByKeyword(message);
     }
 
-    // 4. Build system prompt
-    const systemPrompt = [
-      `You are the AI receptionist for ${companyName}.`,
-      'You are helpful, professional, and concise. Keep responses under 3 sentences.',
-      'Only answer questions about this business and its services.',
-      'Do not make up information. If you do not know something, say so.',
-      ragContext
-        ? `\nHere is relevant information about ${companyName}:\n\n${ragContext}`
-        : '',
-      '\nIf the visitor seems interested in purchasing or scheduling, encourage them to book a call or start a trial.',
-    ].filter(Boolean).join('\n');
+    // 5 — Booking card for qualified prospects. Offered as soon as intent is
+    //     clear: an appointment business loses the visitor if it waits.
+    const phone = resolvePhone(brand, client);
+    const bookingUrl = brand?.booking_url || null;
 
-    // 5. Build message history (cap at last 10 messages to control tokens)
-    const history = conversation_history.slice(-10);
-    const messages: Message[] = [...history, { role: 'user', content: message }];
-
-    // 6. Call Claude Sonnet 4.6
-    const responseText = await callClaude(systemPrompt, messages);
-
-    // 7. Classify based on combined user message + assistant response context
-    const combinedContext = message + ' ' + responseText;
-    const classification = classifyResponse(combinedContext);
-
-    // 8. Build response payload; include booking offer when appropriate
     const payload: Record<string, unknown> = {
       response: responseText,
       classification,
       session_id,
     };
 
-    if (classification === 'qualified_prospect' && history.length > 3 && bookingUrl) {
-      payload.booking_offer = {
-        url: bookingUrl,
-        label: `Book a call with ${companyName}`,
+    if (classification === 'qualified_prospect' && (phone || bookingUrl)) {
+      payload.booking_card = {
+        headline: `Ready to book with ${companyName}?`,
+        cta_label: 'Book an appointment',
+        booking_url: bookingUrl,
+        phone,
       };
     }
 
-    // 9. Log to agent_runs (fire-and-forget, don't block response)
-    const estimatedTokens = Math.ceil((systemPrompt.length + message.length + responseText.length) / 4);
-    logAgentRun(client_id, session_id, message, responseText, classification, estimatedTokens).catch(() => null);
+    // 6 — Session tracking + run log. Neither should be able to fail the reply
+    //     that has already been generated.
+    const sessionPromise = supabaseServer
+      .rpc('upsert_widget_session', {
+        p_client_id: client_id,
+        p_session_token: session_id,
+        p_classification: classification,
+      })
+      .then(({ error }: { error: unknown }) => {
+        if (error) console.error('[widget/chat] upsert_widget_session failed:', error);
+      });
+
+    const logPromise = logAgentRun({
+      client_id,
+      agent_type: 'receptionist',
+      status: 'completed',
+      input_tokens: ai.inputTokens,
+      output_tokens: ai.outputTokens,
+      cost_usd: ai.cost,
+      output_summary: `Receptionist replied to a ${classification} visitor`,
+      metadata: {
+        session_id,
+        classification,
+        visitor_message: message,
+        reply: responseText,
+        rag_used: Boolean(ragContext),
+        booking_card_shown: Boolean(payload.booking_card),
+      },
+    });
+
+    // Awaited rather than fire-and-forget: serverless can freeze the function
+    // the moment the response is returned, dropping both writes.
+    await Promise.allSettled([sessionPromise, logPromise]);
 
     return NextResponse.json(payload, { headers: CORS });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Internal error';
+    console.error('[widget/chat] POST failed:', msg);
     return NextResponse.json({ error: msg }, { status: 500, headers: CORS });
   }
 }

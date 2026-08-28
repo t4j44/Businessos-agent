@@ -4,6 +4,7 @@ import { getClientContext, supabaseAdmin } from '@/lib/supabase';
 import { logAgentRun } from '@/lib/log';
 import { retrieveContext, storeRAGChunk } from '@/lib/embeddings';
 import { findOrCreateContact, logInteraction, updateContactScore } from '@/lib/contacts';
+import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
 
 const NEUTRAL_TONE =
   'professional, courteous, and clear — like a well-run business responding respectfully.';
@@ -91,8 +92,8 @@ export async function runReputation(params: {
     }
   }
 
-  const voiceContext = await retrieveContext('brand voice tone and communication style', client_id);
-  const productContext = await retrieveContext('products and services and common customer questions', client_id);
+  const voiceContext = await retrieveContext('brand voice tone and communication style', client_id, 'voice');
+  const productContext = await retrieveContext('products and services and common customer questions', client_id, 'brand');
 
   const { brand } = await getClientContext(client_id);
   const companyName = brand?.company_name || 'our company';
@@ -198,6 +199,15 @@ export async function runReputation(params: {
 }
 
 export async function POST(req: Request) {
+  let clientId: string;
+  let reqBody: any = {};
+  try {
+    reqBody = await req.json().catch(() => ({}));
+    ({ clientId } = await requireCronOrSession(req, reqBody?.client_id));
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
       { success: false, error: 'OPENROUTER_API_KEY missing from .env.local' },
@@ -206,8 +216,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = await req.json();
-    const client_id = body.client_id;
+    const body = reqBody;
+    const client_id = clientId;
     const review_text = body.review_text;
     const rating = body.rating ?? body.star_rating;
     const platform = body.platform || 'unknown';

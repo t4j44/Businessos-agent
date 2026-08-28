@@ -162,13 +162,32 @@ export async function retrieveContext(
   const embedding = await createEmbedding(query)
   if (!embedding) return ''
   try {
-    const { data, error } = await supabaseAdmin.rpc('match_rag_chunks', {
+    // search_rag_chunks (migration 006) is the only one of the two that honours
+    // a type filter — match_rag_chunks ignores it entirely, so passing chunkType
+    // to the older function was a silent no-op.
+    const { data, error } = await supabaseAdmin.rpc('search_rag_chunks', {
+      query_embedding: embedding,
+      match_client_id: clientId,
+      match_count: topK,
+      filter_chunk_type: chunkType ?? null,
+    })
+
+    if (!error && data) {
+      return data.map((c: any) => c.content).join('\n\n')
+    }
+
+    // Fall back to the original function if 006 has not been applied. The type
+    // filter is lost in that case, which is the previous behaviour.
+    if (error) {
+      console.warn('[rag] search_rag_chunks unavailable, falling back:', error.message)
+    }
+    const { data: legacy, error: legacyError } = await supabaseAdmin.rpc('match_rag_chunks', {
       query_embedding: embedding,
       match_client_id: clientId,
       match_count: topK,
     })
-    if (error || !data) return ''
-    return data.map((c: any) => c.content).join('\n\n')
+    if (legacyError || !legacy) return ''
+    return legacy.map((c: any) => c.content).join('\n\n')
   } catch (e) {
     console.error('RAG retrieval failed:', e)
     return ''

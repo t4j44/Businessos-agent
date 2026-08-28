@@ -40,13 +40,22 @@
   }
 
   // ── State ────────────────────────────────────────────────────────────────
-  var open    = false;
-  var busy    = false;
-  var history = [];
+  var open         = false;
+  var busy         = false;
+  var bookingShown = false;
+  var history      = [];
 
   try { var h = ss(K_CONV); if (h) history = JSON.parse(h); } catch (_) {}
 
-  var cfg = { name: 'Assistant', color: '#2563EB', greeting: null, booking_url: null };
+  var cfg = {
+    name: 'Assistant',
+    color: '#2563EB',
+    logo_url: null,
+    greeting: null,
+    booking_url: null,
+    phone: null,
+    cta_label: 'Book an appointment',
+  };
 
   // ── Tiny DOM helper ──────────────────────────────────────────────────────
   function $id(i) { return document.getElementById(i); }
@@ -71,8 +80,14 @@
         if (!d) return;
         if (d.company_name)        cfg.name        = d.company_name;
         if (d.brand_color_primary) cfg.color       = d.brand_color_primary;
-        if (d.greeting_text)       cfg.greeting    = d.greeting_text;
+        if (d.logo_url)            cfg.logo_url    = d.logo_url;
+        // welcome_message is always populated by the server; greeting_text is
+        // the older key and stays as a fallback for cached responses.
+        if (d.welcome_message)     cfg.greeting    = d.welcome_message;
+        else if (d.greeting_text)  cfg.greeting    = d.greeting_text;
         if (d.booking_url)         cfg.booking_url = d.booking_url;
+        if (d.phone)               cfg.phone       = d.phone;
+        if (d.cta_label)           cfg.cta_label   = d.cta_label;
         applyTheme();
       })
       .catch(function () {});
@@ -89,8 +104,32 @@
     if (els.btn) els.btn.style.background  = cfg.color;
     if (els.hd)  els.hd.style.background   = cfg.color;
     if (els.snd) els.snd.style.background  = cfg.color;
-    if (els.nm)  els.nm.textContent        = esc(cfg.name);
-    if (els.av)  els.av.textContent        = cfg.name.charAt(0).toUpperCase();
+    // textContent, not esc() — esc() is for innerHTML, and double-escaping here
+    // would render "&amp;" literally in a clinic name like "Smith & Co".
+    if (els.nm)  els.nm.textContent        = cfg.name;
+    if (els.av)  setAvatar(els.av, 36);
+  }
+
+  // Header/message avatar: the client's logo when they have one, their initial
+  // otherwise.
+  function setAvatar(el, size) {
+    if (!el) return;
+    el.textContent = '';
+    if (cfg.logo_url) {
+      var img = document.createElement('img');
+      img.className = 'bos-logo';
+      img.src = cfg.logo_url;
+      img.alt = '';
+      img.width = size;
+      img.height = size;
+      // A broken logo URL should degrade to the initial, not an empty box.
+      img.addEventListener('error', function () {
+        el.textContent = cfg.name.charAt(0).toUpperCase();
+      });
+      el.appendChild(img);
+      return;
+    }
+    el.textContent = cfg.name.charAt(0).toUpperCase();
   }
 
   // ── Scroll messages to bottom ────────────────────────────────────────────
@@ -113,7 +152,7 @@
       var av2 = document.createElement('div');
       av2.className = 'bos-av2';
       av2.style.background = cfg.color;
-      av2.textContent = cfg.name.charAt(0).toUpperCase();
+      setAvatar(av2, 27);
       wrap.appendChild(av2);
     }
 
@@ -151,24 +190,67 @@
   }
 
   // ── Booking offer card ───────────────────────────────────────────────────
-  function showBookingCard() {
+
+  // booking_url comes from the database, so a bad or hostile value must not
+  // become a javascript: link.
+  function safeUrl(u) {
+    if (!u) return null;
+    var s = String(u).trim();
+    return /^https?:\/\//i.test(s) ? s : null;
+  }
+
+  // Strips formatting for the tel: href while the visible label keeps it.
+  function telHref(p) {
+    var digits = String(p).replace(/[^\d+]/g, '');
+    return digits ? 'tel:' + digits : null;
+  }
+
+  // Shown once per conversation. The server returns the card on every
+  // qualified_prospect turn, and repeating it after each message reads as
+  // nagging rather than helpful.
+  function showBookingCard(data) {
     var msgs = $id('bos-msgs');
-    if (!msgs) return;
-    var url = esc(cfg.booking_url || 'https://calendly.com');
+    if (!msgs || bookingShown) return;
+
+    var d     = data || {};
+    var url   = safeUrl(d.booking_url || cfg.booking_url);
+    var phone = d.phone || cfg.phone;
+    var label = d.cta_label || cfg.cta_label || 'Book an appointment';
+
+    // Nothing to act on — no link and no number — so show nothing rather than
+    // a dead-end card.
+    if (!url && !phone) return;
+
+    bookingShown = true;
+
     var card = document.createElement('div');
     card.className = 'bos-book';
-    // Safe: url is already escaped; button text is static
+
     var p = document.createElement('p');
     p.className = 'bos-book-t';
-    p.textContent = 'Would you like to schedule a call with our team?';
-    var a = document.createElement('a');
-    a.className = 'bos-book-a';
-    a.href = cfg.booking_url || 'https://calendly.com';
-    a.target = '_blank';
-    a.rel = 'noreferrer noopener';
-    a.textContent = '📅 Book a Call';
+    p.textContent = d.headline || ('Ready to book with ' + cfg.name + '?');
     card.appendChild(p);
-    card.appendChild(a);
+
+    if (phone) {
+      var tel  = telHref(phone);
+      var pel  = document.createElement(tel ? 'a' : 'div');
+      pel.className = 'bos-book-p';
+      if (tel) pel.href = tel;
+      pel.textContent = '📞 ' + phone;
+      card.appendChild(pel);
+    }
+
+    if (url) {
+      var a = document.createElement('a');
+      a.className = 'bos-book-a';
+      a.style.background = cfg.color;
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noreferrer noopener';
+      a.textContent = '📅 ' + label;
+      card.appendChild(a);
+    }
+
     msgs.appendChild(card);
     scrollEnd();
   }
@@ -189,8 +271,7 @@
       btn.setAttribute('aria-label', 'Close chat');
       renderHistory();
       if (!history.length) {
-        var g = cfg.greeting || ("Hi! I’m " + cfg.name + "'s assistant. How can I help?");
-        addMsg('assistant', g, false);
+        addMsg('assistant', cfg.greeting || 'Hi! How can I help you today?', false);
       }
       setTimeout(function () { var i = $id('bos-inp'); if (i) i.focus(); }, 260);
     } else {
@@ -235,9 +316,10 @@
       .then(function (d) {
         setTyping(false);
         addMsg('assistant', d.response || 'Sorry, I could not understand that.', true);
-        // Show booking card for qualified prospects after a few turns
-        if (d.classification === 'qualified_prospect' && history.length > 4) {
-          setTimeout(showBookingCard, 400);
+        // The server decides eligibility and supplies the phone/CTA from the
+        // brand DNA; the widget only renders what it is given.
+        if (d.booking_card) {
+          setTimeout(function () { showBookingCard(d.booking_card); }, 400);
         }
       })
       .catch(function () {
@@ -290,7 +372,7 @@
 
     var av  = document.createElement('div');
     av.id   = 'bos-av';
-    av.textContent = cfg.name.charAt(0).toUpperCase();
+    setAvatar(av, 36);
 
     var info = document.createElement('div');
     var nm   = document.createElement('div');
@@ -328,7 +410,7 @@
     var av2 = document.createElement('div');
     av2.className = 'bos-av2';
     av2.style.background = cfg.color;
-    av2.textContent = cfg.name.charAt(0).toUpperCase();
+    setAvatar(av2, 27);
 
     var dots = document.createElement('div');
     dots.className = 'bos-dots';
@@ -427,9 +509,14 @@
     '#bos-snd:hover{opacity:.84}',
     '#bos-snd:disabled{opacity:.38;cursor:not-allowed}',
 
+    /* Logo in the avatar slots */
+    '.bos-logo{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}',
+
     /* Booking card */
     '.bos-book{background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.22);border-radius:12px;padding:14px;text-align:center}',
     '.bos-book-t{color:#94a3b8;font-size:13px;margin-bottom:10px!important;line-height:1.4}',
+    '.bos-book-p{display:block;color:#e2e8f0!important;text-decoration:none;font-size:15px;font-weight:600;margin-bottom:10px;letter-spacing:.2px}',
+    'a.bos-book-p:hover{text-decoration:underline}',
     '.bos-book-a{display:inline-block;background:#2563eb;color:#fff!important;text-decoration:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;transition:opacity .15s}',
     '.bos-book-a:hover{opacity:.85}',
   ].join('');

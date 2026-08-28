@@ -4,6 +4,7 @@ import { getClientContext } from '@/lib/supabase';
 import { logAgentRun } from '@/lib/log';
 import { findOrCreateContact, logInteraction, updateContactScore, getContactHistory } from '@/lib/contacts';
 import { retrieveContext, storeRAGChunk } from '@/lib/embeddings';
+import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
 
 const NEUTRAL_TONE =
   'professional, courteous, and clear — like a well-run business communicating respectfully.';
@@ -29,6 +30,12 @@ function buildSystemPrompt(
   softerTone: boolean,
 ): string {
   const voice = `You are drafting overdue-invoice chase messages for ${companyName}. Brand tone: ${toneDescription}.
+
+This is a debt collection communication. The message MUST include, verbatim:
+"${FDCPA_DISCLOSURE}"
+Do not threaten legal action, credit reporting, or any consequence that will not
+actually occur. Do not imply urgency that is not real. State the amount owed and
+the original due date factually.
 ${voiceContext ? `\nReal examples of how this brand writes — match this voice closely:\n"""\n${voiceContext}\n"""\n` : ''}`;
 
   switch (step) {
@@ -143,7 +150,7 @@ export async function runInvoiceChase(params: {
     }
   }
 
-  const voiceContext = await retrieveContext('brand voice tone and communication style', client_id);
+  const voiceContext = await retrieveContext('brand voice tone and communication style', client_id, 'contact');
 
   // ── CORE ACTION ────────────────────────────────────────────────────────
   const { brand } = await getClientContext(client_id);
@@ -166,12 +173,19 @@ export async function runInvoiceChase(params: {
       ai = result.ai;
       message = result.analysis.message || '';
       
-      if (chase_step === 4) {
-        message = (message || '').trim() + ' ' + FDCPA_DISCLOSURE;
+      // FDCPA: assert the disclosure rather than trusting the model to have
+      // included it. Applies to every step of the sequence, not just step 4.
+      message = (message || '').trim();
+      if (!message.includes(FDCPA_DISCLOSURE)) {
+        message = (message + ' ' + FDCPA_DISCLOSURE).trim();
       }
       
+      // Step 2 goes out as SMS. Truncate the drafted body, never the
+      // disclosure — cutting it would undo the assertion above.
       if (chase_step === 2 && message && message.length > 160) {
-        message = message.slice(0, 157) + '...';
+        const room = 160 - FDCPA_DISCLOSURE.length - 4;
+        const draft = message.replace(FDCPA_DISCLOSURE, '').trim();
+        message = (draft.slice(0, Math.max(0, room)).trimEnd() + '... ' + FDCPA_DISCLOSURE).trim();
       }
     } catch (err: any) {
       await logAgentRun({
@@ -236,6 +250,15 @@ export async function runInvoiceChase(params: {
 }
 
 export async function POST(req: Request) {
+  let clientId: string;
+  let reqBody: any = {};
+  try {
+    reqBody = await req.json().catch(() => ({}));
+    ({ clientId } = await requireCronOrSession(req, reqBody?.client_id));
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
       { success: false, error: 'OPENROUTER_API_KEY missing from .env.local' },
@@ -244,8 +267,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = await req.json();
-    const client_id = body.client_id;
+    const body = reqBody;
+    const client_id = clientId;
     const customer_email = body.customer_email;
     const customer_name = body.customer_name;
     const invoice_id = body.invoice_id ?? body.invoice_number;

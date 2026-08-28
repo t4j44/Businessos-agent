@@ -1,7 +1,15 @@
 import { createRouteClient } from '@/lib/supabase-route';
 import { NextResponse } from 'next/server';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 export async function POST(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const supabase = await createRouteClient();
     const { data: { user } } = await supabase.auth.getUser();

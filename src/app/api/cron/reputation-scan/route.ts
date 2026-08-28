@@ -11,7 +11,12 @@ export async function GET(req: Request) {
     try {
       const res = await fetch(
         process.env.NEXT_PUBLIC_APP_URL + '/api/agents/reputation/analyze',
-        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        { method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            // The agent routes now require a session or this secret.
+            Authorization: 'Bearer ' + (process.env.CRON_SECRET ?? ''),
+          },
           body: JSON.stringify({ client_id: client.id }) }
       )
       results.push({ client: client.name, status: res.ok ? 'ok' : 'failed' })

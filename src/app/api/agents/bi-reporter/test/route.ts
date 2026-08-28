@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { runBiReporter } from '../route';
 
-const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { notFoundInProduction } from '@/lib/auth-guard'
 
 const FAKE_METRICS = {
   calls: { total: 34, resolved: 19, escalated: 8, avg_sentiment: 61 },
@@ -12,6 +13,9 @@ const FAKE_METRICS = {
 };
 
 export async function GET() {
+  const blocked = notFoundInProduction()
+  if (blocked) return blocked
+
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
       { error: 'OPENROUTER_API_KEY missing from .env.local' },

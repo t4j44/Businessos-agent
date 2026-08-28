@@ -4,14 +4,8 @@ import { getClientContext, supabaseAdmin } from '@/lib/supabase';
 import { logAgentRun } from '@/lib/log';
 import { retrieveContext, storeRAGChunk } from '@/lib/embeddings';
 
-function getMondayDateString(d = new Date()): string {
-  const date = new Date(d);
-  const day = date.getUTCDay(); // 0 = Sunday .. 6 = Saturday
-  const diff = (day === 0 ? -6 : 1) - day; // days back to Monday
-  date.setUTCDate(date.getUTCDate() + diff);
-  date.setUTCHours(0, 0, 0, 0);
-  return date.toISOString().slice(0, 10);
-}
+import { getMondayDateString } from '@/lib/week';
+import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
 
 async function countRows(
   table: string,
@@ -157,7 +151,11 @@ async function gatherMetrics(client_id: string, since: string) {
   };
 }
 
-function buildSystemPrompt(companyName: string, brandContext: string): string {
+function buildSystemPrompt(
+  companyName: string,
+  brandContext: string,
+  hasIntelligence: boolean,
+): string {
   return `You are a brutally honest COO writing a weekly brief for ${companyName}.
 Brand context: ${brandContext}
 
@@ -170,12 +168,15 @@ RULES YOU CANNOT BREAK:
 6. Never use the words: great, amazing, fantastic, excellent, outstanding
 7. Recommended Action must be specific and measurable, not generic advice
 
-Generate a brief with exactly these 5 sections:
+Generate a brief with exactly these ${hasIntelligence ? '6' : '5'} sections:
 1. WARE Score (0-1000): Provide the score and a one-line meaning.
 2. What Is Working
 3. What Is Not Working
 4. Recommended Action (one specific action)
-5. Hot Items (bullet list of things needing attention)
+5. Hot Items (bullet list of things needing attention)${hasIntelligence ? `
+6. Intelligence Briefing — Nightwatch data is present below. Include a brief section
+   summarising the top competitor move, the top audience insight, and the top trend
+   opportunity.` : ''}
 
 Format as clean HTML with inline styles (email-safe). Do not include markdown code block syntax like \`\`\`html. 
 
@@ -186,7 +187,11 @@ Return ONLY valid JSON:
 }`;
 }
 
-function buildUserMessage(metrics: any, wareScore: number): string {
+function buildUserMessage(
+  metrics: any,
+  wareScore: number,
+  intelligenceReport?: any,
+): string {
   const callResolutionPct = metrics.calls.total
     ? Math.round((metrics.calls.resolved / metrics.calls.total) * 100)
     : 0;
@@ -197,7 +202,7 @@ function buildUserMessage(metrics: any, wareScore: number): string {
     ? Math.round((metrics.invoices.paid / metrics.invoices.total) * 100)
     : 0;
 
-  return `This week's raw metrics (last 7 days):
+  const base = `This week's raw metrics (last 7 days):
 - Calls: ${metrics.calls.total} total, ${metrics.calls.resolved} resolved (${callResolutionPct}% resolution rate), ${metrics.calls.escalated} escalated, ${metrics.calls.avg_sentiment}/100 avg sentiment
 - Reviews: ${metrics.reviews.total} total, ${metrics.reviews.avg_rating} avg rating, ${metrics.reviews.responded} responded (${reviewResponsePct}% response rate)
 - Invoices: ${metrics.invoices.total} sent, ${metrics.invoices.paid} paid (${invoicePaidPct}% collection rate), ${metrics.invoices.overdue} overdue, sum amount due: $${metrics.invoices.sum_amount_due}
@@ -205,6 +210,14 @@ function buildUserMessage(metrics: any, wareScore: number): string {
 - Contacts: ${metrics.contacts.at_risk} at-risk customers (score < 30)
 
 The WARE Score for this week is ${wareScore}/1000.`;
+
+  if (!intelligenceReport) return base;
+
+  return (
+    base +
+    '\n\nNIGHTWATCH INTELLIGENCE REPORT (from overnight agents):\n' +
+    JSON.stringify(intelligenceReport)
+  );
 }
 
 async function generateBrief(system: string, user: string) {
@@ -235,7 +248,7 @@ async function generateBrief(system: string, user: string) {
 export async function runBiReporter(client_id: string, overrideMetrics?: any, week_start_date?: string) {
   // ── BEFORE ACTING ────────────────────────────────────────────────────────
   const since = week_start_date || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const brandContext = await retrieveContext('brand identity and business description', client_id);
+  const brandContext = await retrieveContext('brand identity and business description', client_id, 'performance');
   const metrics = overrideMetrics || await gatherMetrics(client_id, since);
 
   // ── CORE ACTION ────────────────────────────────────────────────────────
@@ -253,8 +266,29 @@ export async function runBiReporter(client_id: string, overrideMetrics?: any, we
     ((metrics.calls.avg_sentiment / 100) * 200)
   );
 
-  const system = buildSystemPrompt(companyName, brandContext);
-  const user = buildUserMessage(metrics, ware_score);
+  // Nightwatch writes its overnight synthesis onto this week's brief row.
+  // Multiple briefs can exist for one week (the cron plus a manual
+  // "Generate Brief" click), so this takes the newest rather than
+  // .maybeSingle(), which would throw on more than one match.
+  const intelligenceWeek = week_start_date ? week_start_date.slice(0, 10) : getMondayDateString();
+  let intelligenceReport: any = null;
+  try {
+    const { data: briefRows } = await supabaseAdmin
+      .from('weekly_briefs')
+      .select('intelligence_report_json')
+      .eq('client_id', client_id)
+      .eq('week_start', intelligenceWeek)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    intelligenceReport = briefRows?.[0]?.intelligence_report_json || null;
+  } catch (err) {
+    // Missing column (migration 015 unapplied) or an unreachable row must not
+    // stop the brief — it just loses the intelligence section.
+    console.warn('[bi-reporter] intelligence lookup failed:', err);
+  }
+
+  const system = buildSystemPrompt(companyName, brandContext, !!intelligenceReport);
+  const user = buildUserMessage(metrics, ware_score, intelligenceReport);
 
   let aiResult;
   let briefHtml = '';
@@ -330,6 +364,15 @@ export async function runBiReporter(client_id: string, overrideMetrics?: any, we
 }
 
 export async function POST(req: Request) {
+  let clientId: string;
+  let reqBody: any = {};
+  try {
+    reqBody = await req.json().catch(() => ({}));
+    ({ clientId } = await requireCronOrSession(req, reqBody?.client_id));
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
       { success: false, error: 'OPENROUTER_API_KEY missing from .env.local' },
@@ -338,7 +381,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { client_id, week_start_date } = await req.json();
+    const client_id = clientId;
+    const week_start_date = reqBody?.week_start_date;
 
     if (!client_id) {
       return NextResponse.json(

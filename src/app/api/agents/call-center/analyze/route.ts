@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 const DAYS = 7;
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -15,9 +16,16 @@ function outcomeOf(row: any): Outcome {
 }
 
 export async function GET(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = searchParams.get('client_id') || TEST_CLIENT_ID;
+    const client_id = clientId;
 
     const { data: rows, error } = await supabaseAdmin
       .from('call_transcripts')

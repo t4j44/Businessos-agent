@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { requireUser, authErrorResponse } from '@/lib/auth-guard';
 
 // `field` arrives from the browser, so it is checked against an allowlist —
 // otherwise any column on brand_profiles could be overwritten.
@@ -21,6 +22,12 @@ const JSON_FIELDS = [
 ];
 
 export async function POST(req: Request) {
+  try {
+    await requireUser();
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { client_id, field, value } = await req.json();
 

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard'
 
 // Header aliases accepted for each lead column, lowercased.
 const COLUMN_ALIASES: Record<string, string[]> = {
@@ -10,7 +11,13 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   company: ['company', 'company name', 'organization', 'account'],
   linkedin_url: ['linkedin', 'linkedin url', 'linkedin_url', 'profile'],
   phone: ['phone', 'phone number', 'mobile', 'telephone'],
+  // TCPA: consent has to be imported with the lead, not assumed.
+  phone_consent: ['phone_consent', 'phone consent', 'sms consent', 'consent'],
+  consent_source: ['consent_source', 'consent source', 'source of consent', 'opt_in_source'],
 };
+
+// Values accepted as affirmative consent in the CSV.
+const TRUTHY = ['true', 'yes', 'y', '1', 'consented', 'opt-in', 'opt in'];
 
 // Minimal RFC-4180 row splitter: handles quoted fields and escaped quotes.
 function splitRow(line: string): string[] {
@@ -50,10 +57,17 @@ function mapHeaders(header: string[]): Record<string, number> {
 }
 
 export async function POST(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const form = await req.formData();
     const file = form.get('file');
-    const client_id = String(form.get('client_id') || TEST_CLIENT_ID);
+    const client_id = clientId;
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'No CSV file was uploaded.' }, { status: 400 });
@@ -90,6 +104,13 @@ export async function POST(req: Request) {
         phone: at(r, 'phone'),
         source: 'csv_import',
         status: 'pending',
+        // Only an explicit affirmative counts; anything else, including a
+        // blank column, means no consent.
+        phone_consent: TRUTHY.includes(String(at(r, 'phone_consent') ?? '').trim().toLowerCase()),
+        phone_consent_at: TRUTHY.includes(String(at(r, 'phone_consent') ?? '').trim().toLowerCase())
+          ? new Date().toISOString()
+          : null,
+        phone_consent_source: at(r, 'consent_source'),
       }))
       .filter((l) => l.name || l.email);
 

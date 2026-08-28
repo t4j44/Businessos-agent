@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { resolveClientId } from '@/lib/session';
 
 function num(value: any): number | null {
   const n = Number(value);
@@ -11,7 +12,7 @@ function num(value: any): number | null {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = searchParams.get('client_id') || TEST_CLIENT_ID;
+    const client_id = (await resolveClientId(req)).clientId;
 
     const { data: rows, error } = await supabaseAdmin
       .from('content_calendar')
@@ -56,6 +57,30 @@ export async function GET(req: Request) {
       (p) => p.scheduled_at && new Date(p.scheduled_at).getTime() >= monthStart.getTime(),
     ).length;
 
+    // The agents whose work shows up on this screen.
+    const CONTENT_AGENTS = [
+      'creative', 'brand_scout', 'market_intelligence',
+      'audience_intelligence', 'trend_radar', 'nightwatch',
+    ];
+
+    const { data: runRows } = await supabaseAdmin
+      .from('agent_runs')
+      .select('id, agent_type, status, output_summary, cost_usd, created_at')
+      .eq('client_id', client_id)
+      .in('agent_type', CONTENT_AGENTS)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    // Trend Radar queues its urgent drafts as action_type 'content_draft'.
+    const { data: draftRows } = await supabaseAdmin
+      .from('approvals_queue')
+      .select('id, action_type, payload_json, status, created_at')
+      .eq('client_id', client_id)
+      .eq('action_type', 'content_draft')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
     const totalViews = withMetrics.reduce((t, p) => t + (p.metrics?.views ?? 0), 0);
     const totalEngagements = withMetrics.reduce(
       (t, p) => t + (p.metrics?.likes ?? 0) + (p.metrics?.comments ?? 0),
@@ -66,6 +91,8 @@ export async function GET(req: Request) {
       client_id,
       is_empty: posts.length === 0,
       posts,
+      agent_runs: runRows || [],
+      pending_draft: draftRows?.[0] || null,
       stats: {
         posts_published: published.length,
         published_this_month: publishedThisMonth,

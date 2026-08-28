@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard'
 
 // Mirrors src/app/pricing/page.tsx.
 const PLAN_PRICING: Record<string, number> = {
@@ -13,9 +14,16 @@ const PLAN_PRICING: Record<string, number> = {
 };
 
 export async function GET(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = searchParams.get('client_id') || TEST_CLIENT_ID;
+    const client_id = clientId;
 
     const { data: client, error } = await supabaseAdmin
       .from('clients')

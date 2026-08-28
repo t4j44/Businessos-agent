@@ -2,7 +2,12 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+// Exposed as a CSS variable so Tailwind's font-sans stack can reference it.
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+})
 
 export const metadata: Metadata = {
   title: 'Business OS — Your AI Operations Team',
@@ -15,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className} style={{ backgroundColor: '#0F172A' }}>
+    <html lang="en" className={inter.variable}>
+      <body className={`${inter.className} bg-canvas text-ink antialiased`}>
         {children}
       </body>
     </html>

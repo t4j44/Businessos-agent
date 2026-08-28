@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, FormEvent } from 'react';
-import { Send, ArrowRight, Sparkles, Upload, FileText, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Send, ArrowRight, Sparkles, Upload, FileText, X, Loader2, CheckCircle2 } from 'lucide-react';
 
 type Role = 'ai' | 'user';
 type Message = { id: number; role: Role; text: string };
@@ -89,8 +90,13 @@ export default function OnboardingPage() {
   const [messages, setMessages] = useState<Message[]>([{ id: 0, role: 'ai', text: OPENING }]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>('url');
   const [clientId, setClientId] = useState<string | null>(null);
+
+  // Full-screen hand-off while Brand Scout enriches the profile.
+  // null = not finishing, 'working' = running, otherwise the closing line.
+  const [finishing, setFinishing] = useState<null | 'working' | 'done' | 'partial'>(null);
 
   const [showUploader, setShowUploader] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -153,6 +159,38 @@ export default function OnboardingPage() {
   const finish = async () => {
     await aiReply(FINISH);
     setPhase('done');
+    void runBrandScoutAndRedirect();
+  };
+
+  // Brand Scout adds the visual brand and the RAG chunks on top of the profile
+  // /analyze already wrote. It takes ~20s, so the user gets a screen that says
+  // so rather than a frozen chat.
+  const runBrandScoutAndRedirect = async () => {
+    setFinishing('working');
+    const startedAt = Date.now();
+
+    let complete = false;
+    try {
+      const res = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      complete = res.ok && !!json?.brand_scout_complete;
+    } catch (err) {
+      // The account already exists — this step only enriches it.
+      console.error('[onboarding] brand scout call failed:', err);
+    }
+
+    // Hold the screen briefly even on a fast response, so the state change is
+    // legible rather than a flash.
+    const elapsed = Date.now() - startedAt;
+    if (elapsed < 3000) await sleep(3000 - elapsed);
+
+    setFinishing(complete ? 'done' : 'partial');
+    await sleep(1500);
+    router.push('/dashboard');
   };
 
   // ── STEP 3b — uploads ────────────────────────────────────────────────────
@@ -194,10 +232,31 @@ export default function OnboardingPage() {
       for (const f of valid) body.append('files', f);
 
       const res = await fetch('/api/onboarding/upload', { method: 'POST', body });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || `Request failed (HTTP ${res.status})`);
 
-      push('ai', "Got those! I've added them to your brand profile.");
+      // A request rejected by the host for being too large comes back as HTML,
+      // so res.json() would throw a parse error over the actual reason.
+      const raw = await res.text();
+      let json: any = {};
+      try {
+        json = raw ? JSON.parse(raw) : {};
+      } catch {
+        json = {};
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          json?.error ||
+            (res.status === 413
+              ? 'the server wouldn’t accept a file that large'
+              : `Request failed (HTTP ${res.status})`),
+        );
+      }
+
+      // Only claim success for files that actually landed in storage.
+      const stored = Array.isArray(json.uploaded) ? json.uploaded : [];
+      if (stored.length > 0) {
+        push('ai', "Got those! I've added them to your brand profile.");
+      }
 
       if (Array.isArray(json.failed) && json.failed.length > 0) {
         push(
@@ -286,6 +345,43 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-[#0F172A] flex flex-col">
+
+      {/* ── Hand-off overlay ────────────────────────────────────────────
+          Covers the chat while Brand Scout runs, so the wait is explained
+          rather than looking like a hung page. */}
+      {finishing && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0A0A0B] px-6 text-center"
+        >
+          {finishing === 'working' ? (
+            <>
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-lg bg-[#7C3AED]/10">
+                <Loader2 className="h-7 w-7 animate-spin text-[#7C3AED]" />
+              </div>
+              <p className="text-base font-semibold text-[#F4F4F5]">
+                Analyzing your brand...
+              </p>
+              <p className="mt-1.5 text-sm text-[#71717A]">
+                This takes about 20 seconds.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-lg bg-[#10B981]/10">
+                <CheckCircle2 className="h-7 w-7 text-[#10B981]" />
+              </div>
+              <p className="text-base font-semibold text-[#F4F4F5]">
+                {finishing === 'done'
+                  ? 'Brand DNA created. Taking you to your dashboard...'
+                  : 'Account created. You can analyze your brand from the dashboard.'}
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div className="border-b border-slate-800 px-6 py-4">
         <div className="max-w-2xl mx-auto flex items-center gap-2.5">

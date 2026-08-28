@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { resolveClientId } from '@/lib/session';
+import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
 const WEEKS = 12;
 const MS_WEEK = 7 * 24 * 60 * 60 * 1000;
 
@@ -103,7 +105,7 @@ export function groupComplaintThemes(
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = searchParams.get('client_id') || TEST_CLIENT_ID;
+    const client_id = (await resolveClientId(req)).clientId;
 
     const { data: rows, error } = await supabaseAdmin
       .from('reviews')
@@ -125,7 +127,12 @@ export async function GET(req: Request) {
     const sourceRows: any[] = dedupeReviews(rawRows);
     const duplicatesRemoved = rawRows.length - sourceRows.length;
 
-    const reviews = sourceRows.map((r) => ({
+    type ScoredReview = Record<string, any> & {
+      star_rating: number;
+      sentiment: Sentiment;
+    };
+
+    const reviews: ScoredReview[] = sourceRows.map((r) => ({
       ...r,
       star_rating: Number(r.star_rating) || 0,
       sentiment: sentimentOf(Number(r.star_rating) || 0),
@@ -246,6 +253,15 @@ export async function GET(req: Request) {
 // over each one. Without it the cron would hit a 405, since this file
 // previously exported GET only.
 export async function POST(req: Request) {
+  let clientId: string;
+  let reqBody: any = {};
+  try {
+    reqBody = await req.json().catch(() => ({}));
+    ({ clientId } = await requireCronOrSession(req, reqBody?.client_id));
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
       { error: 'OPENROUTER_API_KEY missing from .env.local' },
@@ -254,7 +270,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { client_id, limit } = await req.json();
+    const client_id = clientId;
+    const limit = reqBody?.limit;
 
     if (!client_id) {
       return NextResponse.json({ error: 'client_id is required.' }, { status: 400 });

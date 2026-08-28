@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 import { runCallCenter } from '../route';
 
-const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { notFoundInProduction } from '@/lib/auth-guard'
 
 const FAKE_TRANSCRIPT =
   'Caller: Hi, what are your hours? Agent: We\'re open Monday to Friday, 9 to 6. ' +
   'Caller: Perfect, thank you! Agent: You\'re welcome, have a great day!';
 
 export async function GET() {
+  const blocked = notFoundInProduction()
+  if (blocked) return blocked
+
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
       { error: 'OPENROUTER_API_KEY missing from .env.local' },

@@ -12,7 +12,7 @@ interface MetricCardProps {
   value: string | number
   /** Direction of change vs last week. */
   trend?: TrendDirection
-  /** Percentage change vs last week, e.g. 12 renders as "+12%". */
+  /** Percentage change vs last week, e.g. 12 renders as"+12%". */
   trendValue?: number
   color?: MetricAccent
   onClick?: () => void
@@ -24,8 +24,8 @@ interface MetricCardProps {
 }
 
 const ACCENTS: Record<MetricAccent, string> = {
-  default: 'text-[#FAFAFA]',
-  primary: 'text-[#6366F1]',
+  default: 'text-[#F4F4F5]',
+  primary: 'text-[#7C3AED]',
   success: 'text-[#10B981]',
   warning: 'text-[#F59E0B]',
   danger: 'text-[#EF4444]',
@@ -121,7 +121,7 @@ export function MetricCard({
         )}
 
         {sparkline && sparkline.length > 1 && (
-          <div className={`flex-shrink-0 ${trend ? TREND_STYLES[trend] : 'text-[#6366F1]'}`}>
+          <div className={`flex-shrink-0 ${trend ? TREND_STYLES[trend] : 'text-[#7C3AED]'}`}>
             <Sparkline points={sparkline} />
           </div>
         )}
@@ -130,7 +130,7 @@ export function MetricCard({
   )
 
   const base =
-    'group w-full rounded-xl border border-[#27272A] bg-[#111113] p-5 text-left transition-colors duration-200'
+    'group w-full rounded-xl border border-[#1F1F23] bg-[#111113] p-5 text-left transition-colors duration-200'
 
   // Rendered as a real button when interactive, so it is keyboard accessible.
   if (clickable) {
@@ -138,7 +138,7 @@ export function MetricCard({
       <button
         type="button"
         onClick={onClick}
-        className={`${base} cursor-pointer hover:border-[#3F3F46] hover:bg-[#18181B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6366F1] focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090B]`}
+        className={`${base} cursor-pointer hover:border-[#3F3F46] hover:bg-[#17171A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0B]`}
       >
         {content}
       </button>

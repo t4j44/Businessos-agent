@@ -9,6 +9,7 @@ import {
   logInteraction,
   updateContactScore,
 } from '@/lib/contacts';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 const ESCALATION_TRIGGERS = [
   'billing dispute',
@@ -85,7 +86,9 @@ export async function runCallCenter(
     const faqContext = await retrieveContext(
       'frequently asked questions and common customer inquiries',
       client_id,
-      'faq',
+      // FAQ content lives in Brand Scout's 'brand' chunks; 'contact' holds
+      // interaction history, which is not what a caller is asking about.
+      'brand',
       3,
     );
 
@@ -122,11 +125,13 @@ export async function runCallCenter(
 
   const faqContext = await retrieveContext(
     'frequently asked questions and common customer inquiries',
-    client_id
+    client_id,
+    'brand'
   );
   const brandContext = await retrieveContext(
     'brand voice tone and communication style',
-    client_id
+    client_id,
+    'contact'
   );
 
   // ── CORE ACTION ────────────────────────────────────────────────────────
@@ -243,6 +248,13 @@ Return ONLY valid JSON:
 }
 
 export async function POST(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
       { success: false, error: 'OPENROUTER_API_KEY missing from .env.local' },
@@ -251,9 +263,11 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { client_id, transcript, caller_phone, caller_name, call_duration_seconds } = await req.json();
+    const { transcript, caller_phone, caller_name, call_duration_seconds } = await req.json();
+    const client_id = clientId;
 
-    if (!client_id) {
+    if (!client_id) { // always set from session
+
       return NextResponse.json(
         { success: false, error: 'client_id is required.' },
         { status: 400 },

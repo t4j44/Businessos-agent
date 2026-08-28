@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { PDFParse } from 'pdf-parse';
+import { requireUser, authErrorResponse } from '@/lib/auth-guard';
 
 const BUCKET = 'brand-assets';
 const MAX_BYTES = 10 * 1024 * 1024; // 10MB per file
@@ -43,6 +44,12 @@ async function extractPdfText(bytes: Uint8Array): Promise<string> {
 
 export async function POST(req: Request) {
   try {
+    await requireUser();
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
     const form = await req.formData();
 
     const client_id = form.get('client_id');
@@ -55,8 +62,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No files were provided.' }, { status: 400 });
     }
 
+    // Supabase never creates a bucket on demand — uploading into a missing one
+    // fails per file with a bare "Bucket not found", which reads like a problem
+    // with the file. Check once up front so the real cause is reported instead.
+    const { error: bucketError } = await supabaseAdmin.storage.getBucket(BUCKET);
+    if (bucketError) {
+      console.error(`[onboarding/upload] bucket "${BUCKET}" unavailable:`, bucketError);
+      return NextResponse.json(
+        {
+          error:
+            `Storage bucket "${BUCKET}" is not available (${bucketError.message}). ` +
+            `It has to be created in Supabase before brand assets can be stored.`,
+        },
+        { status: 503 },
+      );
+    }
+
     const uploaded: { name: string; type: string; url: string }[] = [];
     const failed: { name: string; reason: string }[] = [];
+
+    // Distinguishes "storage rejected it" from "we rejected it" so the response
+    // status can say which side is at fault.
+    let storageFailed = false;
 
     for (const file of files) {
       const kind = ALLOWED_TYPES[file.type];
@@ -80,6 +107,7 @@ export async function POST(req: Request) {
 
       if (uploadError) {
         console.error('[onboarding/upload] storage upload failed:', uploadError);
+        storageFailed = true;
         failed.push({ name: file.name, reason: uploadError.message });
         continue;
       }
@@ -114,6 +142,15 @@ export async function POST(req: Request) {
         .createSignedUrl(path, SIGNED_URL_TTL);
 
       uploaded.push({ name: file.name, type: file.type, url: signed?.signedUrl || path });
+    }
+
+    // Nothing was stored. Returning 200 here made the client announce success
+    // over a completely empty upload, which hid the real failure.
+    if (uploaded.length === 0) {
+      return NextResponse.json(
+        { uploaded, failed, error: failed[0]?.reason || 'No files could be stored.' },
+        { status: storageFailed ? 502 : 400 },
+      );
     }
 
     return NextResponse.json({ uploaded, failed });

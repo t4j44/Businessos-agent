@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 const ALLOWED_STATUSES = new Set([
   'pending', 'emailed', 'replied', 'hot', 'do_not_contact',
@@ -9,6 +10,13 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
     const body = await req.json();
@@ -22,10 +30,16 @@ export async function PATCH(
       .from('leads')
       .update({ status })
       .eq('id', id)
+      // Ownership: a row belonging to another tenant must be
+      // indistinguishable from one that does not exist.
+      .eq('client_id', clientId)
       .select('id, status')
       .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
       console.error('[dashboard/leads/:id] update failed:', error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

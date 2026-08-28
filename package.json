@@ -24,6 +24,9 @@
     "start": "next start",
     "lint": "next lint"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "devDependencies": {
     "@types/node": "25.8.0",
     "@types/react": "19.2.14",

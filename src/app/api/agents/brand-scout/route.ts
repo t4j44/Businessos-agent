@@ -4,6 +4,8 @@ import { readWebsite, normalizeUrl } from '@/lib/scraper';
 import { supabaseAdmin } from '@/lib/supabase';
 import { logAgentRun } from '@/lib/log';
 import { createEmbedding, retrieveContext, storeRAGChunk } from '@/lib/embeddings';
+import { extractVisualBrand, type VisualBrand } from '@/lib/visual-brand';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 // ACTIVE_MODEL in src/lib/ai.ts is a module constant, not an environment
 // variable. Honour an env override here for parity with the spec, falling back
@@ -55,8 +57,37 @@ const SYSTEM_PROMPT = `You are a brand analyst. Analyze the website content and 
   greeting_text: string (a warm greeting their AI receptionist would use),
   faq_json: array of {question: string, answer: string} (3-5 likely FAQs),
   contact_info: object with optional keys {email, phone, address} (omit what is absent),
-  location: string (city/region they operate from, or empty string)
+  location: string (city/region they operate from, or empty string),
+  visual_style: string (5-8 words, e.g. "clean minimalist", "warm and earthy", "bold and energetic", "clinical and trustworthy"),
+  photography_style: string (5-8 words, e.g. "lifestyle photography, natural light", "studio product shots", "editorial fashion")
 }`;
+
+// brand_color_primary carries DEFAULT '#2563EB' from migration 001, so a stored
+// value is NOT evidence the founder picked it. Only a different value counts as
+// a deliberate choice worth protecting.
+const DEFAULT_BRAND_COLOR = '#2563eb';
+
+function isFounderSet(color: string | null | undefined): boolean {
+  const c = (color || '').trim().toLowerCase();
+  return Boolean(c) && c !== DEFAULT_BRAND_COLOR;
+}
+
+// The wording the model sees about the palette and fonts. Omitted entirely when
+// extraction found nothing, so the model is not asked to reason about an empty
+// list and invent a style.
+function buildVisualPromptBlock(visual: VisualBrand): string {
+  if (visual.colors.length === 0 && visual.fonts.length === 0) return '';
+
+  const colors = visual.colors.length ? visual.colors.join(', ') : 'none detected';
+  const fonts = visual.fonts.length ? visual.fonts.join(', ') : 'none detected';
+
+  return [
+    '',
+    '',
+    'VISUAL DATA extracted from the raw site markup:',
+    `The website uses these hex colors: ${colors}. The most frequent non-neutral color is likely the primary brand color. The fonts detected are: ${fonts}. Based on the visual palette and content tone, describe the visual style and photography style of this brand in 5-8 words each.`,
+  ].join('\n');
+}
 
 const MAX_ATTEMPTS = 3;
 
@@ -102,11 +133,12 @@ export async function runBrandScout(
   let refreshed = false;
   let existingProfileId: string | null = null;
   let existingContext = '';
+  let existingPrimaryColor: string | null = null;
 
   if (client_id) {
     const { data: existing, error: existingError } = await supabaseAdmin
       .from('brand_profiles')
-      .select('id')
+      .select('id, brand_color_primary')
       .eq('client_id', client_id)
       .maybeSingle();
 
@@ -115,6 +147,7 @@ export async function runBrandScout(
     } else if (existing) {
       refreshed = true;
       existingProfileId = existing.id;
+      existingPrimaryColor = existing.brand_color_primary ?? null;
       console.log(`[brand-scout] refreshing existing brand profile for client ${client_id}`);
     }
 
@@ -123,6 +156,17 @@ export async function runBrandScout(
       client_id,
     );
   }
+
+  // ── CORE ACTION — visual pass on the raw markup ───────────────────────────
+  // Deliberately before readWebsite: Crawl4AI and Jina both return rendered
+  // prose, which has already discarded the hex codes, font links and <img>
+  // tags. This is the only step that sees the actual HTML.
+  const visual = await extractVisualBrand(url);
+  console.log(
+    `[brand-scout] visual pass: ${visual.colors.length} colours, ${visual.fonts.length} fonts, ` +
+      `${visual.image_urls.length} images, ${visual.stylesheets_read} stylesheets` +
+      (visual.error ? ` (failed: ${visual.error})` : ''),
+  );
 
   // ── CORE ACTION — scrape (Crawl4AI first, Jina fallback via readWebsite) ──
   const content = await readWebsite(url, 6000);
@@ -152,7 +196,7 @@ export async function runBrandScout(
       ai = await callAI({
         model: MODEL,
         system: SYSTEM_PROMPT,
-        user: 'Analyze this website content:\n\n' + content,
+        user: 'Analyze this website content:\n\n' + content + buildVisualPromptBlock(visual),
         maxTokens: 2000,
       });
       brandProfile = parseJSON(ai.text);
@@ -196,8 +240,30 @@ export async function runBrandScout(
   let chunksStored = 0;
   let rawChunksCreated = 0;
 
+  // A founder-set primary colour wins over anything extracted. The stored
+  // default does not count as founder-set — see isFounderSet.
+  const primaryColor = isFounderSet(existingPrimaryColor)
+    ? existingPrimaryColor
+    : visual.colors[0] ?? existingPrimaryColor ?? null;
+
+  const primaryColorKept = isFounderSet(existingPrimaryColor) && visual.colors[0] !== existingPrimaryColor;
+
   if (client_id) {
+    // Written only where a value was actually found, so a blocked visual pass
+    // on a re-run leaves previously stored fields intact instead of nulling
+    // them. Secondary/accent follow the same rule for the same reason.
+    const visualRow: Record<string, any> = {};
+    if (primaryColor) visualRow.brand_color_primary = primaryColor;
+    if (visual.colors[1]) visualRow.brand_color_secondary = visual.colors[1];
+    if (visual.colors[2]) visualRow.brand_color_accent = visual.colors[2];
+    if (visual.fonts[0]) visualRow.brand_font_primary = visual.fonts[0];
+    if (visual.fonts[1]) visualRow.brand_font_secondary = visual.fonts[1];
+    if (brandProfile.visual_style) visualRow.visual_style = brandProfile.visual_style;
+    if (brandProfile.photography_style) visualRow.photography_style = brandProfile.photography_style;
+    if (visual.image_urls.length) visualRow.existing_image_urls = visual.image_urls;
+
     const profileRow = {
+      ...visualRow,
       client_id,
       company_name: brandProfile.company_name,
       tagline: brandProfile.tagline,
@@ -323,6 +389,15 @@ export async function runBrandScout(
       output_data: brandProfile,
       refreshed,
       chunks_stored: chunksStored,
+      visual: {
+        colors: visual.colors,
+        color_counts: visual.color_counts,
+        fonts: visual.fonts,
+        image_urls: visual.image_urls,
+        stylesheets_read: visual.stylesheets_read,
+        primary_color_kept: primaryColorKept,
+        error: visual.error || null,
+      },
     },
   });
 
@@ -331,6 +406,16 @@ export async function runBrandScout(
     body: {
       success: true,
       brand_profile: brandProfile,
+      visual: {
+        colors: visual.colors,
+        fonts: visual.fonts,
+        image_urls: visual.image_urls,
+        stylesheets_read: visual.stylesheets_read,
+        // True when an extracted colour was discarded in favour of a value the
+        // founder had already set.
+        primary_color_kept: primaryColorKept,
+        error: visual.error || null,
+      },
       chunks_stored: chunksStored,
       refreshed,
       existing_context: existingContext,
@@ -345,6 +430,13 @@ export async function runBrandScout(
 }
 
 export async function POST(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
       { success: false, error: 'OPENROUTER_API_KEY missing from .env.local' },
@@ -353,7 +445,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    let { url, client_id } = await req.json();
+    let { url } = await req.json();
+    const client_id = clientId;
     if (url) {
       url = normalizeUrl(url);
     }

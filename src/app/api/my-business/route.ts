@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard'
 
 // `field` arrives from the browser, so it is checked against an allowlist —
 // otherwise any column on brand_profiles could be overwritten.
@@ -28,9 +29,16 @@ const CLIENT_FIELDS = ['url'];
 const TONE_TYPES = ['formal', 'casual', 'technical'];
 
 export async function GET(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = searchParams.get('client_id') || TEST_CLIENT_ID;
+    const client_id = clientId;
 
     const { data: client } = await supabaseAdmin
       .from('clients')
@@ -64,10 +72,17 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { field, value } = body;
-    const client_id = body.client_id || TEST_CLIENT_ID;
+    const client_id = clientId;
 
     if (!field) {
       return NextResponse.json({ error: 'field is required.' }, { status: 400 });

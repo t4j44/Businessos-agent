@@ -1,11 +1,19 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 // PATCH { action: 'pause' | 'resume' | 'mark_paid' }
 //
 // There is no `paused` column on invoices, so pausing is represented by
 // status = 'paused' and resuming returns the row to 'sent'.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
     const { action } = await req.json();
@@ -35,10 +43,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .from('invoices')
       .update(patch)
       .eq('id', id)
+      // Ownership: a row belonging to another tenant must be
+      // indistinguishable from one that does not exist.
+      .eq('client_id', clientId)
       .select('id, status, paid_at, days_overdue')
       .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
       console.error('[invoices/:id] update failed:', error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

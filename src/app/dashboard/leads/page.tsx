@@ -23,9 +23,9 @@ const LEAD_STATUSES = [
 ];
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:         'bg-slate-500/15 text-slate-400 border-slate-500/25',
-  emailed:         'bg-blue-500/15 text-blue-400 border-blue-500/25',
-  replied:         'bg-violet-500/15 text-violet-400 border-violet-500/25',
+  pending:         'bg-[#52525B]/15 text-[#A1A1AA] border-[#2A2A30]/25',
+  emailed:         'bg-[#7C3AED]/15 text-[#7C3AED] border-[#7C3AED]/25',
+  replied:         'bg-[#7C3AED]/15 text-[#7C3AED] border-[#7C3AED]/25',
   hot:             'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
   do_not_contact:  'bg-red-500/15 text-red-400 border-red-500/25',
 };
@@ -71,7 +71,7 @@ function getReplyRateColor(r: number) {
   return r > 5 ? 'text-emerald-400' : r >= 2 ? 'text-amber-400' : 'text-red-400';
 }
 function getScoreColor(s: number) {
-  return s >= 70 ? 'bg-amber-400' : s >= 50 ? 'bg-emerald-400' : 'bg-[#2563EB]';
+  return s >= 70 ? 'bg-amber-400' : s >= 50 ? 'bg-emerald-400' : 'bg-[#7C3AED]';
 }
 
 function timeAgo(iso: string | null) {
@@ -92,11 +92,11 @@ function Checkbox({ label, checked, onChange }: { label: string; checked: boolea
   return (
     <label className="flex items-center gap-2 cursor-pointer group select-none">
       <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
-        checked ? 'bg-[#2563EB] border-[#2563EB]' : 'border-slate-600 group-hover:border-slate-500 bg-slate-800'
+        checked ? 'bg-[#7C3AED] border-[#7C3AED]' : 'border-[#2A2A30] group-hover:border-[#2A2A30] bg-[#17171A]'
       }`}>
         {checked && <CheckSquare className="w-3.5 h-3.5 text-white" />}
       </div>
-      <span className="text-sm text-slate-300 group-hover:text-slate-200">{label}</span>
+      <span className="text-sm text-[#A1A1AA] group-hover:text-[#F4F4F5]">{label}</span>
     </label>
   );
 }
@@ -109,12 +109,12 @@ function Stat({
   icon: React.ElementType; label: string; value: string; hasData: boolean; valueClass?: string;
 }) {
   return (
-    <div className="bg-[#1E293B] rounded-xl border border-slate-700/50 p-4">
-      <div className="flex items-center gap-2 text-slate-400 mb-2">
+    <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-4">
+      <div className="flex items-center gap-2 text-[#A1A1AA] mb-2">
         <Icon className="w-4 h-4" />
         <h3 className="text-xs font-medium uppercase tracking-wider">{label}</h3>
       </div>
-      <p className={`text-2xl font-semibold ${hasData ? valueClass : 'text-slate-600'}`}>
+      <p className={`text-2xl font-semibold ${hasData ? valueClass : 'text-[#52525B]'}`}>
         {hasData ? value : '—'}
       </p>
     </div>
@@ -244,12 +244,12 @@ export default function HunterLeadsPage() {
   const handleApplyFilters = () => setPage(0);
 
   const icpPanel = icpOpen && icp && (
-    <div className="bg-[#1E293B] rounded-xl border border-slate-700/50 p-5 shadow-xl">
+    <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-5">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Job titles to target</label>
+            <label className="block text-sm font-medium text-[#A1A1AA] mb-2">Job titles to target</label>
             <div className="flex items-center gap-2 mb-2">
               <input
                 type="text"
@@ -257,58 +257,58 @@ export default function HunterLeadsPage() {
                 onChange={(e) => setTitleInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addTitle()}
                 placeholder="e.g. CTO, VP Engineering..."
-                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="flex-1 bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none"
               />
-              <button onClick={addTitle} className="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg">
+              <button onClick={addTitle} className="p-2 bg-[#17171A] hover:bg-[#1F1F23] border border-[#1F1F23] rounded-lg">
                 <Plus className="w-4 h-4" />
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
               {icp.titles.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#2563EB]/20 text-blue-300 border border-blue-500/20 text-xs font-medium">
+                <span key={t} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#7C3AED]/20 text-[#A78BFA] border border-[#7C3AED]/20 text-xs font-medium">
                   {t}
-                  <button onClick={() => removeTitle(t)} className="text-blue-400 hover:text-blue-200"><X className="w-3 h-3" /></button>
+                  <button onClick={() => removeTitle(t)} className="text-[#A78BFA] hover:text-[#F4F4F5] transition-colors"><X className="w-3 h-3" /></button>
                 </span>
               ))}
-              {icp.titles.length === 0 && <span className="text-xs text-slate-500 italic">No job titles specified.</span>}
+              {icp.titles.length === 0 && <span className="text-xs text-[#71717A] italic">No job titles specified.</span>}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Company Size</label>
+            <label className="block text-sm font-medium text-[#A1A1AA] mb-2">Company Size</label>
             <div className="flex items-center gap-4">
               <input
                 type="number" min="1" placeholder="Min"
                 value={icp.companySizeMin ?? ''}
                 onChange={(e) => setIcp((p) => p ? ({ ...p, companySizeMin: e.target.value === '' ? null : parseInt(e.target.value) }) : p)}
-                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="flex-1 bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none"
               />
-              <span className="text-slate-500">to</span>
+              <span className="text-[#71717A]">to</span>
               <input
                 type="number" min="2" placeholder="Max"
                 value={icp.companySizeMax ?? ''}
                 onChange={(e) => setIcp((p) => p ? ({ ...p, companySizeMax: e.target.value === '' ? null : parseInt(e.target.value) }) : p)}
-                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="flex-1 bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none"
               />
-              <span className="text-sm text-slate-400">employees</span>
+              <span className="text-sm text-[#A1A1AA]">employees</span>
             </div>
           </div>
         </div>
 
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Industries (comma separated)</label>
+            <label className="block text-sm font-medium text-[#A1A1AA] mb-2">Industries (comma separated)</label>
             <input
               type="text"
               value={icp.industries}
               placeholder="e.g. SaaS, Technology, Marketing"
               onChange={(e) => setIcp((p) => p ? ({ ...p, industries: e.target.value }) : p)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              className="w-full bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-3">Seniority levels</label>
+            <label className="block text-sm font-medium text-[#A1A1AA] mb-3">Seniority levels</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {SENIORITY_LEVELS.map((lvl) => (
                 <Checkbox key={lvl} label={lvl} checked={icp.seniority.includes(lvl)} onChange={() => toggleSeniority(lvl)} />
@@ -318,16 +318,16 @@ export default function HunterLeadsPage() {
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-slate-300">Daily email volume limit</label>
-              <span className="text-sm font-bold text-white bg-slate-800 px-2.5 py-1 rounded-md">{icp.dailyEmailLimit}</span>
+              <label className="text-sm font-medium text-[#A1A1AA]">Daily email volume limit</label>
+              <span className="text-sm font-semibold text-[#F4F4F5] bg-[#17171A] px-2.5 py-1 rounded-md">{icp.dailyEmailLimit}</span>
             </div>
             <input
               type="range" min="10" max="100" step="5"
               value={icp.dailyEmailLimit}
               onChange={(e) => setIcp((p) => p ? ({ ...p, dailyEmailLimit: parseInt(e.target.value) }) : p)}
-              className="w-full accent-blue-500 bg-slate-800 h-2 rounded-lg appearance-none cursor-pointer"
+              className="w-full accent-blue-500 bg-[#17171A] h-2 rounded-lg appearance-none cursor-pointer"
             />
-            <div className="flex justify-between text-xs text-slate-500 mt-2">
+            <div className="flex justify-between text-xs text-[#71717A] mt-2">
               <span>10 (Cautious)</span>
               <span>100 (Aggressive)</span>
             </div>
@@ -335,12 +335,12 @@ export default function HunterLeadsPage() {
         </div>
       </div>
 
-      <div className="mt-6 pt-5 border-t border-slate-700/50 flex items-center justify-end gap-4">
+      <div className="mt-6 pt-5 border-t border-[#1F1F23]/50 flex items-center justify-end gap-4">
         {icpError && <p className="text-xs text-red-400">{icpError}</p>}
         <button
           onClick={handleSaveConfig}
           disabled={savingIcp}
-          className="flex items-center gap-2 bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 bg-[#7C3AED] hover:bg-[#6D28D9] disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           {savingIcp
             ? <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
@@ -353,21 +353,21 @@ export default function HunterLeadsPage() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-6 bg-[#0F172A] min-h-full">
+      <div className="p-6 space-y-6 bg-[#0A0A0B] min-h-full">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-24 rounded-xl border border-slate-700/50 bg-[#1E293B] animate-pulse" />
+            <div key={i} className="h-24 rounded-xl border border-[#1F1F23]/50 bg-[#111113] animate-pulse" />
           ))}
         </div>
-        <div className="h-96 rounded-xl border border-slate-700/50 bg-[#1E293B] animate-pulse" />
+        <div className="h-96 rounded-xl border border-[#1F1F23]/50 bg-[#111113] animate-pulse" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6 bg-[#0F172A] min-h-full">
-        <div className="bg-[#1E293B] rounded-xl border border-slate-700/50 p-6">
+      <div className="p-6 bg-[#0A0A0B] min-h-full">
+        <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-6">
           <p className="text-sm text-red-400">Couldn&apos;t load leads — {error}</p>
         </div>
       </div>
@@ -377,15 +377,15 @@ export default function HunterLeadsPage() {
   // ── No leads found yet ───────────────────────────────────────────────────
   if (leads.length === 0) {
     return (
-      <div className="p-6 bg-[#0F172A] min-h-full space-y-6 text-slate-200">
+      <div className="p-6 bg-[#0A0A0B] min-h-full space-y-6 text-[#F4F4F5]">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">Hunter Dashboard</h1>
+          <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-[#F4F4F5]">Hunter Dashboard</h1>
           <button
             onClick={() => setIcpOpen(!icpOpen)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
               icpOpen
-                ? 'bg-[#2563EB] text-white border-blue-600 shadow-lg shadow-blue-500/20'
-                : 'bg-[#1E293B] text-slate-300 border-slate-700/50 hover:bg-slate-800'
+                ? 'bg-[#7C3AED] text-white border-[#7C3AED]'
+                : 'bg-[#111113] text-[#A1A1AA] border-[#1F1F23]/50 hover:bg-[#17171A]'
             }`}
           >
             <SlidersHorizontal className="w-4 h-4" />
@@ -395,16 +395,16 @@ export default function HunterLeadsPage() {
 
         {icpPanel}
 
-        <div className="bg-[#1E293B] rounded-xl border border-slate-700/50">
+        <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50">
           <div className="flex flex-col items-center gap-4 px-6 py-20 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#2563EB]/15">
-              <Target className="h-7 w-7 text-[#2563EB]" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#7C3AED]/15">
+              <Target className="h-7 w-7 text-[#7C3AED]" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">
                 No leads yet. Configure your ICP to start finding prospects.
               </h2>
-              <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+              <p className="mx-auto mt-2 max-w-md text-sm text-[#71717A]">
                 Once your ideal customer profile is set, the Hunter agent sources,
                 enriches, and scores prospects here automatically.
               </p>
@@ -412,7 +412,7 @@ export default function HunterLeadsPage() {
             {!icpOpen && (
               <button
                 onClick={() => setIcpOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-600"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#7C3AED] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9]"
               >
                 <SlidersHorizontal className="w-4 h-4" />
                 Configure target ICP
@@ -425,19 +425,19 @@ export default function HunterLeadsPage() {
   }
 
   return (
-    <div className="h-full flex relative overflow-hidden bg-[#0F172A] text-slate-200">
+    <div className="h-full flex relative overflow-hidden bg-[#0A0A0B] text-[#F4F4F5]">
 
       <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out ${selectedLead ? 'mr-96' : ''}`}>
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-white">Hunter Dashboard</h1>
+            <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-[#F4F4F5]">Hunter Dashboard</h1>
             <button
               onClick={() => setIcpOpen(!icpOpen)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
                 icpOpen
-                  ? 'bg-[#2563EB] text-white border-blue-600 shadow-lg shadow-blue-500/20'
-                  : 'bg-[#1E293B] text-slate-300 border-slate-700/50 hover:bg-slate-800'
+                  ? 'bg-[#7C3AED] text-white border-[#7C3AED]'
+                  : 'bg-[#111113] text-[#A1A1AA] border-[#1F1F23]/50 hover:bg-[#17171A]'
               }`}
             >
               <SlidersHorizontal className="w-4 h-4" />
@@ -470,17 +470,17 @@ export default function HunterLeadsPage() {
                 valueClass={stats.reply_rate !== null ? getReplyRateColor(stats.reply_rate) : ''}
               />
 
-              <div className="bg-[#1E293B] rounded-xl border border-slate-700/50 p-4 flex flex-col justify-center">
+              <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-4 flex flex-col justify-center">
                 <div className="flex items-end justify-between mb-2">
-                  <div className="flex items-center gap-2 text-slate-400">
+                  <div className="flex items-center gap-2 text-[#A1A1AA]">
                     <Clock className="w-4 h-4" />
                     <h3 className="text-xs font-medium uppercase tracking-wider">Daily Limit</h3>
                   </div>
-                  <span className="text-xs font-mono text-slate-300">{stats.daily_sent}/{stats.daily_limit}</span>
+                  <span className="text-xs font-mono text-[#A1A1AA]">{stats.daily_sent}/{stats.daily_limit}</span>
                 </div>
-                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div className="w-full h-1.5 bg-[#17171A] rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-blue-500 rounded-full"
+                    className="h-full bg-[#7C3AED] rounded-full"
                     style={{ width: `${Math.min(100, (stats.daily_sent / Math.max(1, stats.daily_limit)) * 100)}%` }}
                   />
                 </div>
@@ -491,50 +491,50 @@ export default function HunterLeadsPage() {
           {icpPanel}
 
           {/* Leads Table */}
-          <div className="bg-[#1E293B] rounded-xl border border-slate-700/50 flex flex-col">
+          <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 flex flex-col">
 
             {/* Filters */}
-            <div className="p-4 border-b border-slate-700/50 flex flex-wrap items-center gap-3">
+            <div className="p-4 border-b border-[#1F1F23]/50 flex flex-wrap items-center gap-3">
               <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#71717A]" />
                 <input
                   type="text"
                   placeholder="Search by name or company..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full bg-[#111113] border border-[#1F1F23] rounded-lg pl-9 pr-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none"
                 />
               </div>
 
               <select
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none text-slate-300 min-w-[140px]"
+                className="bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none text-[#A1A1AA] min-w-[140px]"
               >
                 {LEAD_STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
 
-              <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
-                <span className="text-xs text-slate-500">Score</span>
+              <div className="flex items-center gap-2 bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2">
+                <span className="text-xs text-[#71717A]">Score</span>
                 <input
                   type="number" placeholder="Min" value={minScore}
                   onChange={(e) => setMinScore(e.target.value)}
-                  className="w-12 bg-transparent text-sm text-slate-300 outline-none text-center"
+                  className="w-12 bg-transparent text-sm text-[#A1A1AA] outline-none text-center"
                 />
-                <span className="text-slate-600">-</span>
+                <span className="text-[#52525B]">-</span>
                 <input
                   type="number" placeholder="Max" value={maxScore}
                   onChange={(e) => setMaxScore(e.target.value)}
-                  className="w-12 bg-transparent text-sm text-slate-300 outline-none text-center"
+                  className="w-12 bg-transparent text-sm text-[#A1A1AA] outline-none text-center"
                 />
               </div>
 
               <button
                 onClick={handleApplyFilters}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="bg-[#17171A] hover:bg-[#1F1F23] text-[#F4F4F5] border border-[#2A2A30] px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
                 Apply Filters
               </button>
@@ -543,7 +543,7 @@ export default function HunterLeadsPage() {
             {/* Table */}
             <div className="flex-1 overflow-auto">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-[#0F172A]/50 border-b border-slate-700/50 text-xs font-semibold text-slate-400 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
+                <thead className="bg-[#0A0A0B]/50 border-b border-[#1F1F23]/50 text-xs font-semibold text-[#A1A1AA] uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
                   <tr>
                     <th className="px-5 py-4 w-1/4">Name & Email</th>
                     <th className="px-5 py-4 w-1/5">Company</th>
@@ -553,10 +553,10 @@ export default function HunterLeadsPage() {
                     <th className="px-5 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700/30">
+                <tbody className="divide-y divide-[#1F1F23]/30">
                   {pageLeads.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-5 py-16 text-center text-slate-500">
+                      <td colSpan={6} className="px-5 py-16 text-center text-[#71717A]">
                         <Users className="w-10 h-10 mx-auto mb-3 opacity-20" />
                         <p>No leads found matching your criteria.</p>
                       </td>
@@ -565,26 +565,26 @@ export default function HunterLeadsPage() {
                     <tr
                       key={lead.id}
                       onClick={() => setSelectedLead(lead)}
-                      className={`hover:bg-slate-800/40 cursor-pointer transition-colors group ${
+                      className={`hover:bg-[#17171A]/40 cursor-pointer transition-colors group ${
                         selectedLead?.id === lead.id
-                          ? 'bg-[#2563EB]/10 border-l-2 border-[#2563EB]'
+                          ? 'bg-[#7C3AED]/10 border-l-2 border-[#7C3AED]'
                           : 'border-l-2 border-transparent'
                       }`}
                     >
                       <td className="px-5 py-3">
                         <p className="font-medium text-white">{lead.name}</p>
-                        <p className="text-xs text-slate-500 truncate">{lead.email || '—'}</p>
+                        <p className="text-xs text-[#71717A] truncate">{lead.email || '—'}</p>
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
-                          <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                          <span className="text-sm text-slate-300">{lead.company || '—'}</span>
+                          <Building2 className="w-3.5 h-3.5 text-[#71717A]" />
+                          <span className="text-sm text-[#A1A1AA]">{lead.company || '—'}</span>
                         </div>
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-mono font-medium w-6 text-slate-300">{lead.bos_lead_score}</span>
-                          <div className="w-12 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                          <span className="text-sm font-mono font-medium w-6 text-[#A1A1AA]">{lead.bos_lead_score}</span>
+                          <div className="w-12 h-1.5 bg-[#17171A] rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full ${getScoreColor(lead.bos_lead_score)}`}
                               style={{ width: `${lead.bos_lead_score}%` }}
@@ -597,9 +597,9 @@ export default function HunterLeadsPage() {
                           {lead.status.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-sm text-slate-400">{timeAgo(lead.last_contacted_at)}</td>
+                      <td className="px-5 py-3 text-sm text-[#A1A1AA]">{timeAgo(lead.last_contacted_at)}</td>
                       <td className="px-5 py-3 text-right">
-                        <button className="opacity-0 group-hover:opacity-100 text-[#2563EB] hover:text-blue-400 text-sm font-medium transition-all mr-2">
+                        <button className="opacity-0 group-hover:opacity-100 text-[#7C3AED] hover:text-[#7C3AED] text-sm font-medium transition-all mr-2">
                           View Details
                         </button>
                       </td>
@@ -610,7 +610,7 @@ export default function HunterLeadsPage() {
             </div>
 
             {/* Pagination */}
-            <div className="px-5 py-3 border-t border-slate-700/50 bg-[#0F172A]/30 flex items-center justify-between text-sm text-slate-400">
+            <div className="px-5 py-3 border-t border-[#1F1F23]/50 bg-[#0A0A0B]/30 flex items-center justify-between text-sm text-[#A1A1AA]">
               <p>
                 Showing {totalLeads > 0 ? page * PAGE_SIZE + 1 : 0}–{Math.min((page + 1) * PAGE_SIZE, totalLeads)} of {totalLeads} leads
               </p>
@@ -618,14 +618,14 @@ export default function HunterLeadsPage() {
                 <button
                   onClick={() => setPage(Math.max(0, page - 1))}
                   disabled={page === 0}
-                  className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50 transition"
+                  className="p-1.5 rounded bg-[#17171A] hover:bg-[#1F1F23] disabled:opacity-50 transition"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setPage(page + 1)}
                   disabled={(page + 1) * PAGE_SIZE >= totalLeads}
-                  className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50 transition"
+                  className="p-1.5 rounded bg-[#17171A] hover:bg-[#1F1F23] disabled:opacity-50 transition"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -637,24 +637,24 @@ export default function HunterLeadsPage() {
       </div>
 
       {/* Lead Drawer */}
-      <div className={`fixed inset-y-0 pt-16 right-0 w-96 bg-[#0F172A] border-l border-slate-700/80 shadow-2xl transform transition-transform duration-300 ease-out z-20 flex flex-col ${
+      <div className={`fixed inset-y-0 pt-16 right-0 w-96 bg-[#0A0A0B] border-l border-[#1F1F23]/80  transform transition-transform duration-300 ease-out z-20 flex flex-col ${
         selectedLead ? 'translate-x-0' : 'translate-x-full'
       }`}>
         {selectedLead && (
           <>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/80 bg-[#1E293B]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1F1F23]/80 bg-[#111113]">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/30 to-violet-500/30 border border-slate-600/50 flex items-center justify-center">
-                  <User className="w-5 h-5 text-blue-400" />
+                <div className="w-10 h-10 rounded-full bg-[#17171A] border border-[#1F1F23] flex items-center justify-center">
+                  <User className="w-5 h-5 text-[#7C3AED]" />
                 </div>
                 <div>
                   <h2 className="text-white font-semibold text-base leading-tight">{selectedLead.name}</h2>
-                  <p className="text-xs text-slate-400">{selectedLead.email || 'No email on file'}</p>
+                  <p className="text-xs text-[#A1A1AA]">{selectedLead.email || 'No email on file'}</p>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedLead(null)}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
+                className="p-1.5 text-[#A1A1AA] hover:text-white hover:bg-[#1F1F23]/50 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -663,7 +663,7 @@ export default function HunterLeadsPage() {
             <div className="flex-1 overflow-y-auto px-5 py-6 space-y-6">
 
               {/* Status + quick actions */}
-              <div className="flex items-center justify-between pb-4 border-b border-slate-700/50">
+              <div className="flex items-center justify-between pb-4 border-b border-[#1F1F23]/50">
                 <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${STATUS_STYLES[selectedLead.status] ?? STATUS_STYLES.pending}`}>
                   {selectedLead.status.replace(/_/g, ' ')}
                 </span>
@@ -690,23 +690,23 @@ export default function HunterLeadsPage() {
                 <h3 className="text-sm font-semibold text-white">Lead Details</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-slate-500 text-xs mb-1">Company</p>
-                    <div className="flex items-center gap-1.5 text-slate-200">
-                      <Building2 className="w-4 h-4 text-slate-400" />
+                    <p className="text-[#71717A] text-xs mb-1">Company</p>
+                    <div className="flex items-center gap-1.5 text-[#F4F4F5]">
+                      <Building2 className="w-4 h-4 text-[#A1A1AA]" />
                       {selectedLead.company || '—'}
                     </div>
                   </div>
                   <div>
-                    <p className="text-slate-500 text-xs mb-1">Score</p>
-                    <p className="text-slate-200 font-mono font-medium">{selectedLead.bos_lead_score}</p>
+                    <p className="text-[#71717A] text-xs mb-1">Score</p>
+                    <p className="text-[#F4F4F5] font-mono font-medium">{selectedLead.bos_lead_score}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500 text-xs mb-1">Added</p>
-                    <p className="text-slate-200">{timeAgo(selectedLead.created_at)}</p>
+                    <p className="text-[#71717A] text-xs mb-1">Added</p>
+                    <p className="text-[#F4F4F5]">{timeAgo(selectedLead.created_at)}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500 text-xs mb-1">Last contacted</p>
-                    <p className="text-slate-200">{timeAgo(selectedLead.last_contacted_at)}</p>
+                    <p className="text-[#71717A] text-xs mb-1">Last contacted</p>
+                    <p className="text-[#F4F4F5]">{timeAgo(selectedLead.last_contacted_at)}</p>
                   </div>
                 </div>
               </div>
@@ -714,7 +714,7 @@ export default function HunterLeadsPage() {
               {/* Enrichment */}
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-white">Enrichment Data</h3>
-                <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 text-sm text-slate-400 leading-relaxed font-mono whitespace-pre-wrap">
+                <div className="bg-[#111113]/50 border border-[#1F1F23]/50 rounded-lg p-3 text-sm text-[#A1A1AA] leading-relaxed font-mono whitespace-pre-wrap">
                   {selectedLead.company_context ?? 'Not enriched yet — the enrichment agent will fill this in.'}
                 </div>
               </div>

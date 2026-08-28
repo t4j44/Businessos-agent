@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { runInvoiceChase } from '../route';
+import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
 
 // Batch entry point used by the Vercel cron (/api/cron/invoice-chase).
 //
@@ -12,6 +13,15 @@ import { runInvoiceChase } from '../route';
 const MAX_CHASE_STEP = 5;
 
 export async function POST(req: Request) {
+  let clientId: string;
+  let reqBody: any = {};
+  try {
+    reqBody = await req.json().catch(() => ({}));
+    ({ clientId } = await requireCronOrSession(req, reqBody?.client_id));
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
       { error: 'OPENROUTER_API_KEY missing from .env.local' },
@@ -20,7 +30,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { client_id } = await req.json();
+    const client_id = clientId;
 
     if (!client_id) {
       return NextResponse.json({ error: 'client_id is required.' }, { status: 400 });

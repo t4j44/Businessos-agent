@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Home, Phone, Star, DollarSign, Target, PenLine, BarChart3, Brain,
   Settings, CreditCard, LogOut, Menu, X, ChevronLeft, ChevronRight, Building2,
+  MessageSquare, CalendarDays, Crosshair,
 } from 'lucide-react';
 
 type NavItem = {
@@ -26,6 +27,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard',             icon: Home,      label: 'Home' },
       { href: '/dashboard/my-business', icon: Building2, label: 'My Business', subtitle: 'Your brand, voice & data' },
       { href: '/dashboard/calls',    icon: Phone,      label: 'Calls',    subtitle: 'Answers your phone 24/7' },
+      { href: '/dashboard/receptionist', icon: MessageSquare, label: 'Receptionist', subtitle: 'Chats with site visitors' },
+      { href: '/dashboard/scheduler',    icon: CalendarDays,  label: 'Scheduler',    subtitle: 'Books your appointments' },
       { href: '/dashboard/reviews',  icon: Star,       label: 'Reviews',  subtitle: 'Handles your reputation' },
       { href: '/dashboard/invoices', icon: DollarSign, label: 'Invoices', subtitle: 'Chases your payments' },
     ],
@@ -33,6 +36,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     heading: 'Grow',
     items: [
+      { href: '/dashboard/hunter',  icon: Crosshair, label: 'Hunter',   subtitle: 'Finds local businesses' },
       { href: '/dashboard/leads',   icon: Target,   label: 'Outreach', subtitle: 'Finds and emails leads' },
       { href: '/dashboard/content', icon: PenLine,  label: 'Content',  subtitle: 'Posts for you' },
     ],
@@ -54,8 +58,8 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const PLAN_BADGE: Record<string, string> = {
-  starter:    'bg-[#27272A] text-[#A1A1AA] border-[#3F3F46]',
-  core:       'bg-[#6366F1]/10 text-[#6366F1] border-[#6366F1]/25',
+  starter:    'bg-[#1F1F23] text-[#A1A1AA] border-[#2A2A30]',
+  core:       'bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/25',
   growth:     'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/25',
   scale:      'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/25',
   enterprise: 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/25',
@@ -107,13 +111,13 @@ export function Sidebar() {
 
     const inner = (
       <>
-        {/* Indigo left border on the active item */}
+        {/* Accent left border marks the active item — no background fill */}
         <span
-          className={`absolute inset-y-1 left-0 w-0.5 rounded-r ${active ? 'bg-[#6366F1]' : 'bg-transparent'}`}
+          className={`absolute inset-y-1 left-0 w-[2px] rounded-r ${active ? 'bg-[#7C3AED]' : 'bg-transparent'}`}
         />
         <Icon
           className={`h-[18px] w-[18px] flex-shrink-0 ${
-            active ? 'text-[#6366F1]' : soon ? 'text-[#52525B]' : 'text-[#A1A1AA]'
+            active ? 'text-[#7C3AED]' : soon ? 'text-[#52525B]' : 'text-[#A1A1AA]'
           }`}
         />
         {!collapsed && (
@@ -121,7 +125,7 @@ export function Sidebar() {
             <span className="flex items-center gap-1.5">
               <span
                 className={`text-sm font-semibold ${
-                  active ? 'text-[#FAFAFA]' : soon ? 'text-[#71717A]' : 'text-[#E4E4E7]'
+                  active ? 'text-[#F4F4F5]' : soon ? 'text-[#71717A]' : 'text-[#E4E4E7]'
                 }`}
               >
                 {label}
@@ -133,7 +137,7 @@ export function Sidebar() {
               )}
             </span>
             {subtitle && (
-              <span className="mt-0.5 block truncate text-xs text-zinc-400">{subtitle}</span>
+              <span className="mt-0.5 block truncate text-xs text-[#71717A]">{subtitle}</span>
             )}
           </span>
         )}
@@ -163,7 +167,7 @@ export function Sidebar() {
         onClick={() => setMobileOpen(false)}
         title={collapsed ? (subtitle ? `${label} — ${subtitle}` : label) : undefined}
         className={`${base} ${
-          active ? 'bg-[#18181B]' : 'hover:bg-[#18181B]/70'
+          active ? '' : 'hover:bg-[#17171A]'
         } ${collapsed ? 'justify-center' : ''}`}
       >
         {inner}
@@ -175,11 +179,11 @@ export function Sidebar() {
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className={`flex items-center gap-3 px-4 py-5 ${collapsed ? 'justify-center' : ''}`}>
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#6366F1]">
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#7C3AED]">
           <span className="text-sm font-bold text-white">B</span>
         </div>
         {!collapsed && (
-          <span className="text-base font-semibold tracking-tight text-[#FAFAFA]">Business OS</span>
+          <span className="text-base font-semibold tracking-tight text-[#F4F4F5]">Business OS</span>
         )}
       </div>
 
@@ -192,17 +196,17 @@ export function Sidebar() {
                 {group.heading}
               </p>
             )}
-            {collapsed && <div className="mx-3 mb-1.5 border-t border-[#27272A]" />}
+            {collapsed && <div className="mx-3 mb-1.5 border-t border-[#1F1F23]" />}
             {group.items.map(renderItem)}
           </div>
         ))}
       </nav>
 
       {/* Bottom section */}
-      <div className="space-y-1 border-t border-[#27272A] px-3 py-3">
+      <div className="space-y-1 border-t border-[#1F1F23] px-3 py-3">
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className={`hidden w-full items-center gap-3 rounded-lg px-3 py-2 text-[#52525B] transition-colors hover:bg-[#18181B] hover:text-[#A1A1AA] lg:flex ${
+          className={`hidden w-full items-center gap-3 rounded-lg px-3 py-2 text-[#52525B] transition-colors hover:bg-[#17171A] hover:text-[#A1A1AA] lg:flex ${
             collapsed ? 'justify-center' : ''
           }`}
         >
@@ -217,8 +221,8 @@ export function Sidebar() {
         </button>
 
         {!collapsed && (
-          <div className="rounded-lg border border-[#27272A] bg-[#18181B] px-3 py-2.5">
-            <p className="truncate text-sm font-medium text-[#FAFAFA]">
+          <div className="rounded-lg border border-[#1F1F23] bg-[#17171A] px-3 py-2.5">
+            <p className="truncate text-sm font-medium text-[#F4F4F5]">
               {client?.name || 'Your Business'}
             </p>
             <span
@@ -232,7 +236,7 @@ export function Sidebar() {
         <button
           onClick={handleSignOut}
           title={collapsed ? 'Sign out' : undefined}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[#A1A1AA] transition-colors hover:bg-[#18181B] hover:text-[#EF4444] ${
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[#A1A1AA] transition-colors hover:bg-[#17171A] hover:text-[#EF4444] ${
             collapsed ? 'justify-center' : ''
           }`}
         >
@@ -248,7 +252,7 @@ export function Sidebar() {
       {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-4 z-50 rounded-lg border border-[#27272A] bg-[#111113] p-2 text-[#A1A1AA] shadow-lg transition-colors hover:text-[#FAFAFA] lg:hidden"
+        className="fixed left-4 top-4 z-50 rounded-lg border border-[#1F1F23] bg-[#111113] p-2 text-[#A1A1AA] transition-colors hover:text-[#F4F4F5] lg:hidden"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -262,13 +266,13 @@ export function Sidebar() {
 
       {/* Mobile drawer — full labels once opened */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 transform border-r border-[#27272A] bg-[#111113] shadow-2xl transition-transform duration-200 ease-in-out lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 transform border-r border-[#1F1F23] bg-[#111113] transition-transform duration-200 ease-in-out lg:hidden ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <button
           onClick={() => setMobileOpen(false)}
-          className="absolute right-3 top-4 rounded-lg p-1.5 text-[#A1A1AA] transition-colors hover:bg-[#18181B] hover:text-[#FAFAFA]"
+          className="absolute right-3 top-4 rounded-lg p-1.5 text-[#A1A1AA] transition-colors hover:bg-[#17171A] hover:text-[#F4F4F5]"
         >
           <X className="h-4 w-4" />
         </button>
@@ -277,7 +281,7 @@ export function Sidebar() {
 
       {/* Desktop sidebar */}
       <aside
-        className={`hidden flex-shrink-0 flex-col border-r border-[#27272A] bg-[#111113] transition-all duration-200 ease-in-out lg:flex ${
+        className={`hidden flex-shrink-0 flex-col border-r border-[#1F1F23] bg-[#111113] transition-all duration-200 ease-in-out lg:flex ${
           collapsed ? 'w-16' : 'w-64'
         }`}
       >

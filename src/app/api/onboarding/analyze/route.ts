@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { callAI, MODELS, parseJSON } from '@/lib/ai';
 import { readWebsite } from '@/lib/scraper';
 import { supabaseAdmin } from '@/lib/supabase';
+import { requireUser, authErrorResponse } from '@/lib/auth-guard';
 
 // Same brand-extraction prompt the Brand Scout agent uses.
 const SYSTEM_PROMPT = `You are a brand analyst. Analyze the website content and extract brand intelligence. Return ONLY valid JSON, no markdown fences, no extra text, with exactly these keys:
@@ -45,6 +46,12 @@ async function extractBrand(content: string) {
 }
 
 export async function POST(req: Request) {
+  try {
+    await requireUser();
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { url } = await req.json();
 

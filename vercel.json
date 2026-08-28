@@ -1,7 +1,56 @@
 {
   "crons": [
-    { "path": "/api/cron/invoice-chase", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/bi-reporter", "schedule": "0 22 * * 0" },
-    { "path": "/api/cron/reputation-scan", "schedule": "0 10 * * *" }
-  ]
+    {
+      "path": "/api/cron/invoice-chase",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/bi-reporter",
+      "schedule": "0 22 * * 0"
+    },
+    {
+      "path": "/api/cron/reputation-scan",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/appointment-reminders",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/agents/nightwatch",
+      "schedule": "0 2 * * *"
+    }
+  ],
+  "functions": {
+    "src/app/api/agents/brand-scout/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/agents/creative/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/agents/bi-reporter/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/cron/appointment-reminders/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/agents/bi-reporter/generate/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/agents/invoice-chase/run/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/agents/reputation/analyze/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/agents/hunter/prospect/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/agents/hunter/enrich/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/agents/nightwatch/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }

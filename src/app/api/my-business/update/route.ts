@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 // `field` arrives from the browser, so it is checked against an allowlist —
 // otherwise any column on brand_profiles could be overwritten.
@@ -23,12 +24,20 @@ const JSON_FIELDS = [
 const TONE_TYPES = ['formal', 'casual', 'technical'];
 
 export async function PATCH(req: Request) {
+  let clientId: string;
   try {
-    const { client_id, field, value } = await req.json();
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
-    if (!client_id || !field) {
+  try {
+    const { field, value } = await req.json();
+    const client_id = clientId;
+
+    if (!field) {
       return NextResponse.json(
-        { error: 'client_id and field are required.' },
+        { error: 'field is required.' },
         { status: 400 },
       );
     }

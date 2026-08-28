@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const TEST_CLIENT_ID = '00000000-0000-0000-0000-000000000001';
+import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { resolveClientId } from '@/lib/session';
 const MS_DAY = 24 * 60 * 60 * 1000;
 
 // Statuses that mean the lead has been emailed at least once.
@@ -10,14 +11,17 @@ const CONTACTED = new Set(['emailed', 'replied', 'hot']);
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = searchParams.get('client_id') || TEST_CLIENT_ID;
+    const client_id = (await resolveClientId(req)).clientId;
 
     const { data: rows, error } = await supabaseAdmin
       .from('leads')
       .select(
-        'id, name, email, company, bos_lead_score, status, source, enrichment_json, last_contacted_at, created_at',
+        'id, name, contact_name, email, company, bos_lead_score, status, source, enrichment_json, last_contacted_at, created_at',
       )
       .eq('client_id', client_id)
+      // Apollo/CSV rows only — prospected rows have their own screen at
+      // /dashboard/hunter and their own status column (outreach_status).
+      .is('place_id', null)
       .order('bos_lead_score', { ascending: false });
 
     if (error) {
@@ -27,9 +31,12 @@ export async function GET(req: Request) {
 
     const leads = (rows || []).map((l: any) => ({
       id: l.id,
-      name: l.name || 'Unnamed lead',
+      // contact_name is the person; name is a person on Apollo rows but a
+      // business on prospected ones. Preferring contact_name keeps the Contact
+      // column correct whichever pipeline the row came from.
+      name: l.contact_name || l.name || 'Unnamed lead',
       email: l.email || '',
-      company: l.company || '',
+      company: l.company || l.name || '',
       bos_lead_score: Number(l.bos_lead_score) || 0,
       status: l.status || 'pending',
       // The Firecrawl/Apollo enrichment payload is free-form; surface whichever
