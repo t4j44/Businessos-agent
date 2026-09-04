@@ -12,6 +12,9 @@ import { updateSession } from '@/lib/supabase-middleware'
 // authorisation.
 
 // Always reachable, even under a future stricter policy.
+// Pages that must load without a session. The /api entries below are now
+// unreachable by this check (see the /api/ short-circuit in middleware) and
+// are kept only as a record of what is intentionally public.
 const PUBLIC_PATHS = new Set([
   '/',
   '/login',
@@ -38,9 +41,17 @@ export async function middleware(request: NextRequest) {
   const { response, user } = await updateSession(request)
   const { pathname } = request.nextUrl
 
-  if (isPublic(pathname)) return response
+  // API routes carry their own guards (requireSession / requireCron /
+  // webhook signatures). Gating them here would redirect webhooks and cron
+  // to an HTML login page, so middleware stays out of /api entirely.
+  if (pathname.startsWith('/api/')) return response
 
-  if (pathname.startsWith('/dashboard') && !user) {
+  // Pages are deny-by-default. The previous rule only tested
+  // startsWith('/dashboard'), which is why isPublic() was computed and then
+  // ignored — and why removing '/test' from PUBLIC_PREFIXES had no effect.
+  // Anything not explicitly public now requires a session, including pages
+  // added later that nobody remembers to add to an allowlist.
+  if (!isPublic(pathname) && !user) {
     const loginUrl = new URL('/login', request.url)
     // So the user lands back where they were aiming after signing in.
     loginUrl.searchParams.set('redirectedFrom', pathname)

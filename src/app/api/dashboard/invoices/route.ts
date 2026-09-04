@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 import { TEST_CLIENT_ID } from '@/lib/client-config';
-import { resolveClientId } from '@/lib/session';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 // The chase sequence has 5 steps, but the funnel presents Sent → 1..4 → Paid,
 // so step 5 (final notice) is folded into the "Step 4 Call" stage.
@@ -26,9 +26,16 @@ function stageOf(inv: any): string {
 }
 
 export async function GET(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = (await resolveClientId(req)).clientId;
+    const client_id = clientId;
 
     const { data: rows, error } = await supabaseAdmin
       .from('invoices')

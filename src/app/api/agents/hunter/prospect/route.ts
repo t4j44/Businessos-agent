@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { resolveClientId } from '@/lib/session'
 import { logAgentRun } from '@/lib/log'
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 // Hunter Prospect — the first step of the lead pipeline. Discovers local
 // businesses from the locally-held Overture Maps Places dataset.
@@ -272,9 +272,15 @@ export async function runHunterProspect(params: {
 }
 
 export async function POST(req: NextRequest) {
+  let clientId: string;
   try {
-    const { clientId } = await resolveClientId(req)
-    const body = await req.json().catch(() => ({}))
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+        const body = await req.json().catch(() => ({}))
 
     const result = await runHunterProspect({
       clientId,

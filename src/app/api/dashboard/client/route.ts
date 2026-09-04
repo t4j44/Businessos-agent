@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getSessionClient } from '@/lib/session';
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 
 // Client identity for the dashboard. This is the endpoint the pages call to
 // learn which client they are operating on, so it resolves from the signed-in
@@ -23,10 +22,13 @@ export async function GET(req: Request) {
       );
     }
 
-    const client_id =
-      session?.clientId ||
-      new URL(req.url).searchParams.get('client_id') ||
-      TEST_CLIENT_ID;
+    if (!session?.clientId) {
+      // No session, no client. The query-param fallback that used to sit here
+      // let an anonymous caller read any tenant by id.
+      return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+    }
+
+    const client_id = session.clientId;
 
     const { data, error } = await supabaseAdmin
       .from('clients')

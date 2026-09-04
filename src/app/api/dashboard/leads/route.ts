@@ -2,16 +2,23 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 import { TEST_CLIENT_ID } from '@/lib/client-config';
-import { resolveClientId } from '@/lib/session';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 const MS_DAY = 24 * 60 * 60 * 1000;
 
 // Statuses that mean the lead has been emailed at least once.
 const CONTACTED = new Set(['emailed', 'replied', 'hot']);
 
 export async function GET(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = (await resolveClientId(req)).clientId;
+    const client_id = clientId;
 
     const { data: rows, error } = await supabaseAdmin
       .from('leads')

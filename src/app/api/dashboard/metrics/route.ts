@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 import { TEST_CLIENT_ID } from '@/lib/client-config';
-import { resolveClientId } from '@/lib/session';
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 const WINDOW_DAYS = 7;
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -21,9 +21,16 @@ function briefSummary(html: string): string {
 }
 
 export async function GET(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = (await resolveClientId(req)).clientId;
+    const client_id = clientId;
     const since = new Date(Date.now() - WINDOW_DAYS * MS_DAY).toISOString();
 
     // ── agent_runs ────────────────────────────────────────────────────────

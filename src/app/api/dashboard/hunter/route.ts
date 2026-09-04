@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { resolveClientId } from '@/lib/session'
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 // GET /api/dashboard/hunter — the lead pipeline for the Hunter screen.
 //
@@ -9,9 +9,15 @@ import { resolveClientId } from '@/lib/session'
 const LIMIT = 50
 
 export async function GET(req: NextRequest) {
+  let clientId: string;
   try {
-    const { clientId } = await resolveClientId(req)
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
+  try {
+    
     const { data, error } = await supabaseAdmin
       .from('leads')
       .select('*')

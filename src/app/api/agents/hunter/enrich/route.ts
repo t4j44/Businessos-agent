@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { promises as dns } from 'dns'
 import { supabaseAdmin } from '@/lib/supabase'
-import { resolveClientId } from '@/lib/session'
 import { readWebsite } from '@/lib/scraper'
 import { callAI, MODELS, parseJSON } from '@/lib/ai'
+import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 // Hunter Enrich — the second pipeline step. Takes a prospected lead, reads its
 // website for a contact address, verifies the domain can actually receive mail,
@@ -360,9 +360,15 @@ Return JSON: { "score": <0-100>, "reason": "<one sentence why>", "pain_points": 
 }
 
 export async function POST(req: NextRequest) {
+  let clientId: string;
   try {
-    const { clientId } = await resolveClientId(req)
-    const body = await req.json().catch(() => ({}))
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+        const body = await req.json().catch(() => ({}))
 
     const result = await runHunterEnrich({ clientId, leadId: body?.lead_id })
     return NextResponse.json(result)

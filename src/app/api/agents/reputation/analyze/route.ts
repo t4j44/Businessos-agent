@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 import { TEST_CLIENT_ID } from '@/lib/client-config';
-import { resolveClientId } from '@/lib/session';
-import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
+import { requireCronOrSession, requireSession, authErrorResponse } from '@/lib/auth-guard';
 const WEEKS = 12;
 const MS_WEEK = 7 * 24 * 60 * 60 * 1000;
 
@@ -103,9 +102,16 @@ export function groupComplaintThemes(
 }
 
 export async function GET(req: Request) {
+  let clientId: string;
+  try {
+    ({ clientId } = await requireSession());
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
-    const client_id = (await resolveClientId(req)).clientId;
+    const client_id = clientId;
 
     const { data: rows, error } = await supabaseAdmin
       .from('reviews')
