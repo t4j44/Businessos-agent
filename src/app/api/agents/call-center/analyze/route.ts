@@ -6,10 +6,11 @@ import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 const DAYS = 7;
 const MS_DAY = 24 * 60 * 60 * 1000;
 
-export type Outcome = 'resolved' | 'escalated' | 'missed';
+export type Outcome = 'resolved' | 'escalated' | 'missed' | 'pending';
 
 // A call that was neither resolved nor escalated was effectively dropped.
 function outcomeOf(row: any): Outcome {
+  if (row.analysis_status !== 'completed' && !row.resolved && !row.escalated) return 'pending';
   if (row.escalated) return 'escalated';
   if (row.resolved) return 'resolved';
   return 'missed';
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
     const { data: rows, error } = await supabaseAdmin
       .from('call_transcripts')
       .select(
-        'id, direction, caller_number, duration_sec, transcript, summary, sentiment_score, resolved, escalated, escalation_reason, created_at',
+        'id, direction, caller_number, duration_sec, transcript, summary, sentiment_score, analysis_status, resolved, escalated, escalation_reason, created_at',
       )
       .eq('client_id', client_id)
       .order('created_at', { ascending: false });
@@ -56,6 +57,7 @@ export async function GET(req: Request) {
     const outcomes = {
       resolved: calls.filter((c) => c.outcome === 'resolved').length,
       escalated: calls.filter((c) => c.outcome === 'escalated').length,
+      pending: calls.filter((c) => c.outcome === 'pending').length,
       missed: calls.filter((c) => c.outcome === 'missed').length,
     };
 
@@ -93,6 +95,7 @@ export async function GET(req: Request) {
         date: dayStart.toISOString().slice(0, 10),
         resolved: inDay.filter((c) => c.outcome === 'resolved').length,
         escalated: inDay.filter((c) => c.outcome === 'escalated').length,
+        pending: inDay.filter((c) => c.outcome === 'pending').length,
         missed: inDay.filter((c) => c.outcome === 'missed').length,
       });
     }

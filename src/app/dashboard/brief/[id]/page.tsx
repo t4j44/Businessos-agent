@@ -1,18 +1,21 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { sanitizeReportHtml } from '@/lib/report-html';
+
+import React, { useState, useEffect, use } from 'react';
 import { supabaseBrowser } from '@/lib/supabase';
 import { ArrowLeft, Printer, Share2, DownloadCloud } from 'lucide-react';
 import Link from 'next/link';
 
-export default function BriefPage({ params }: { params: { id: string } }) {
+export default function BriefPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [brief, setBrief] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const supabase = supabaseBrowser;
 
   useEffect(() => {
     fetchBrief();
-  }, [params.id]);
+  }, [id]);
 
   const formatWeekStart = (value: string | null | undefined) => {
     if (!value) return 'Unknown';
@@ -29,7 +32,7 @@ export default function BriefPage({ params }: { params: { id: string } }) {
             const { data } = await supabase
               .from('weekly_briefs')
               .select('*')
-              .eq('id', params.id)
+              .eq('id', id)
               .eq('client_id', client.id)
               .single();
             if (data) {
@@ -47,27 +50,27 @@ export default function BriefPage({ params }: { params: { id: string } }) {
     alert('Link copied to clipboard!');
   };
 
-  if (loading) return <div className="p-8 text-sm text-[#A1A1AA]">Loading Brief...</div>;
-  if (!brief) return <div className="p-8 text-sm text-[#EF4444]">Brief not found or you don't have access.</div>;
+  if (loading) return <div className="p-8 text-sm text-muted">Loading Brief...</div>;
+  if (!brief) return <div className="p-8 text-sm text-crit">Brief not found or you don't have access.</div>;
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] p-6 text-[#F4F4F5]">
+    <div className="min-h-screen bg-canvas p-6 text-text">
       
       {/* Top Navigation Bar - Hidden in print */}
-      <div className="max-w-4xl mx-auto mb-6 flex justify-between items-center print:hidden border-b border-[#1F1F23] pb-4">
-        <Link href="/dashboard" className="text-[#A1A1AA] hover:text-[#F4F4F5] flex items-center gap-2 text-sm font-medium transition-colors">
+      <div className="max-w-4xl mx-auto mb-6 flex justify-between items-center print:hidden border-b border-line pb-4">
+        <Link href="/dashboard" className="text-muted hover:text-text flex items-center gap-2 text-sm font-medium transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </Link>
         <div className="flex gap-3">
           <button 
             onClick={handleShare}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#A1A1AA] bg-transparent hover:text-[#F4F4F5] border border-[#1F1F23] hover:border-[#2A2A30] rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted bg-transparent hover:text-text border border-line hover:border-line-strong rounded-lg transition-colors"
           >
             <Share2 className="w-4 h-4" /> Share
           </button>
           <button 
             onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#7C3AED] hover:bg-[#6D28D9] rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors"
           >
              <DownloadCloud className="w-4 h-4" /> Download PDF / Print
           </button>
@@ -81,27 +84,27 @@ export default function BriefPage({ params }: { params: { id: string } }) {
           <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-[#E4E4E7] pb-8 mb-8">
             <div>
               <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-[#18181B] mb-2">Executive Strategy Brief</h1>
-              <p className="text-sm text-[#52525B] font-medium">
+              <p className="text-sm text-faint font-medium">
                 Week Starting: {formatWeekStart(brief.week_start)}
               </p>
             </div>
             
             <div className="mt-4 md:mt-0 flex flex-col items-end">
-              <span className="text-xs font-semibold text-[#71717A] uppercase tracking-wider mb-1">WARE Score</span>
+              <span className="text-xs font-semibold text-dim uppercase tracking-wider mb-1">WARE Score</span>
               <div className="text-5xl font-bold text-[#047857]">{brief.ware_score}</div>
             </div>
           </div>
 
           <div 
             className="brief-content"
-            dangerouslySetInnerHTML={{ __html: brief.brief_html }}
+            dangerouslySetInnerHTML={{ __html: sanitizeReportHtml(brief.brief_html) }}
           />
 
           {/* Nightwatch writes intelligence_report_json onto the week's brief. */}
           <div className="mt-10 pt-8 border-t border-[#E4E4E7]">
             <h2 className="text-lg font-semibold text-[#18181B] mb-3">Intelligence Briefing</h2>
             {brief.intelligence_report_json ? (
-              <div className="space-y-4 text-sm text-[#3F3F46]">
+              <div className="space-y-4 text-sm text-line-strong">
                 {brief.intelligence_report_json.executive_summary && (
                   <p className="leading-relaxed">{brief.intelligence_report_json.executive_summary}</p>
                 )}
@@ -135,13 +138,13 @@ export default function BriefPage({ params }: { params: { id: string } }) {
                 )}
               </div>
             ) : (
-              <p className="text-sm text-[#71717A]">
+              <p className="text-sm text-dim">
                 No intelligence data yet — Nightwatch attaches its overnight findings here.
               </p>
             )}
           </div>
 
-          <div className="mt-12 pt-8 border-t border-[#E4E4E7] text-center text-[#52525B] text-sm font-medium">
+          <div className="mt-12 pt-8 border-t border-[#E4E4E7] text-center text-faint text-sm font-medium">
              Prepared algorithmically by Business OS AI.
           </div>
         </div>

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { readJsonBody, ValidationError } from '@/lib/validation';
+import { parsePublicUrl } from '@/lib/safe-fetch';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
 
 // `field` arrives from the browser, so it is checked against an allowlist —
@@ -54,7 +55,7 @@ export async function GET(req: Request) {
 
     const { data: chunks } = await supabaseAdmin
       .from('rag_chunks')
-      .select('id, content, chunk_type, source_url, created_at')
+      .select('id, content, chunk_type, source_url, created_at, visibility, approved_at')
       .eq('client_id', client_id)
       .eq('is_active', true)
       .order('created_at', { ascending: false });
@@ -80,7 +81,7 @@ export async function PATCH(req: Request) {
   }
 
   try {
-    const body = await req.json();
+    const body = await readJsonBody(req);
     const { field, value } = body;
     const client_id = clientId;
 
@@ -90,9 +91,11 @@ export async function PATCH(req: Request) {
 
     // Website URL is stored on the client record.
     if (CLIENT_FIELDS.includes(field)) {
+      if (typeof value !== 'string') throw new ValidationError('Website must be a URL.');
+      const website = parsePublicUrl(value).href;
       const { error } = await supabaseAdmin
         .from('clients')
-        .update({ [field]: value })
+        .update({ [field]: website })
         .eq('id', client_id);
 
       if (error) {
@@ -134,18 +137,20 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const { error } = await supabaseAdmin
-      .from('brand_profiles')
-      .update({ [field]: parsed })
-      .eq('client_id', client_id);
+    if (isText && typeof parsed !== 'string') throw new ValidationError('Expected text.');
+    const { data: updated, error } = await supabaseAdmin.rpc('edit_brand_field', {
+      p_client_id: client_id, p_field: field, p_value: parsed,
+    });
 
     if (error) {
       console.error('[my-business] update failed:', error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    if (!updated) return NextResponse.json({ error: 'Create your brand profile first.' }, { status: 404 });
     return NextResponse.json({ updated: true });
   } catch (err: any) {
+    if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error('[my-business] PATCH failed:', err);
     return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
   }

@@ -8,7 +8,7 @@ import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
 // The base POST /api/agents/invoice-chase chases exactly one invoice and needs
 // customer_name, amount_cents, invoice_number and chase_step. The cron only
 // knows the client, so this route does the fan-out: it finds which invoices are
-// actually due a chase and advances each one a single step.
+// due for a draft. Delivery and step advancement are separate actions.
 
 const MAX_CHASE_STEP = 5;
 
@@ -47,57 +47,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Only chase what should be chased: unpaid, not paused, actually overdue,
-    // and not already at the final notice.
-    const chaseable = (rows || []).filter((inv: any) => {
-      if (inv.status === 'paid' || inv.status === 'paused') return false;
-      if ((Number(inv.days_overdue) || 0) <= 0) return false;
-      return (Number(inv.chase_step) || 0) < MAX_CHASE_STEP;
-    });
-
     const results: any[] = [];
-
-    for (const inv of chaseable) {
-      const nextStep = (Number(inv.chase_step) || 0) + 1;
+    for (const inv of rows || []) {
+      const { data: claim, error: claimError } = await supabaseAdmin.rpc('claim_invoice_draft', { p_client_id: client_id, p_invoice_id: inv.id });
+      if (claimError) { results.push({ invoice_id: inv.id, status: 'failed' }); continue; }
+      if (claim?.outcome !== 'claimed') { results.push({ invoice_id: inv.id, status: 'skipped', reason: claim?.outcome }); continue; }
       try {
         const { status, body } = await runInvoiceChase({
-          client_id,
-          customer_name: inv.customer_name || 'there',
-          amount_due: (Number(inv.amount_cents) || 0) / 100,
-          invoice_id: inv.stripe_invoice_id || String(inv.id).slice(0, 8),
-          days_overdue: Number(inv.days_overdue) || 0,
-          chase_step: nextStep as 1 | 2 | 3 | 4 | 5,
-          // Without this the contact can never be resolved — a name alone is
-          // not an identity.
-          customer_email: inv.customer_email || undefined,
+          client_id, customer_name: claim.invoice.customer_name || 'Customer',
+          customer_email: claim.invoice.customer_email || undefined,
+          amount_due: claim.invoice.amount_cents / 100,
+          invoice_id: claim.invoice.stripe_invoice_id || String(inv.id).slice(0, 8),
+          days_overdue: claim.days_overdue, chase_step: claim.chase_step,
         });
-
-        if (status === 200) {
-          // Record the advance so tomorrow's run moves to the next step rather
-          // than resending the same message.
-          await supabaseAdmin
-            .from('invoices')
-            .update({ chase_step: nextStep, last_chase_at: new Date().toISOString() })
-            .eq('id', inv.id);
-        }
-
-        results.push({
-          invoice_id: inv.id,
-          chase_step: nextStep,
-          status: status === 200 ? 'ok' : 'failed',
-          error: status === 200 ? undefined : body?.error,
-        });
-      } catch (err: any) {
-        results.push({ invoice_id: inv.id, chase_step: nextStep, status: 'error', error: err?.message });
+        if (status !== 200) throw new Error('Draft generation failed');
+        const { data: saved, error } = await supabaseAdmin.from('invoice_chase_drafts')
+          .update({ status: 'draft', message: body.message, channel: body.channel })
+          .eq('client_id', client_id).eq('id', claim.draft_id).eq('generation_token', claim.generation_token).select('id');
+        if (error || !saved?.length) throw new Error('Draft could not be saved');
+        results.push({ invoice_id: inv.id, draft_id: claim.draft_id, status: 'drafted' });
+      } catch {
+        await supabaseAdmin.from('invoice_chase_drafts').update({ status: 'failed' })
+          .eq('client_id', client_id).eq('id', claim.draft_id).eq('generation_token', claim.generation_token);
+        results.push({ invoice_id: inv.id, status: 'failed' });
       }
     }
-
-    return NextResponse.json({
-      client_id,
-      eligible: chaseable.length,
-      chased: results.filter((r) => r.status === 'ok').length,
-      results,
-    });
+    // A draft does not advance the invoice, change its customer score, or send.
+    return NextResponse.json({ client_id, eligible: results.filter(r => r.status !== 'skipped').length,
+      drafted: results.filter(r => r.status === 'drafted').length, sent: 0, results });
   } catch (err: any) {
     console.error('[invoice-chase/run] POST failed:', err);
     return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });

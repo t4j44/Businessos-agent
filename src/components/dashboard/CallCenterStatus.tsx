@@ -61,7 +61,7 @@ export function CallCenterStatus() {
   }, []);
 
   if (loading) {
-    return <div className="h-40 animate-pulse rounded-lg border border-[#1F1F23] bg-[#111113]" />;
+    return <div className="h-40 animate-pulse rounded-lg border border-line bg-surface" />;
   }
 
   if (error) return <ErrorMessage message={"Couldn't load call status — " + error} />;
@@ -70,23 +70,23 @@ export function CallCenterStatus() {
   const { connected, provider, hint, recent_calls: calls } = data;
 
   return (
-    <div className="rounded-lg border border-[#1F1F23] bg-[#111113]">
+    <div className="rounded-lg border border-line bg-surface">
       {/* Connection */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1F1F23] px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
         <div className="flex items-center gap-3">
           <div
             className={
               'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ' +
-              (connected ? 'bg-[#10B981]/10' : 'bg-[#F59E0B]/10')
+              (connected ? 'bg-good/10' : 'bg-warn/10')
             }
           >
             {connected
-              ? <Phone className="h-4 w-4 text-[#10B981]" />
-              : <PhoneOff className="h-4 w-4 text-[#F59E0B]" />}
+              ? <Phone className="h-4 w-4 text-good" />
+              : <PhoneOff className="h-4 w-4 text-warn" />}
           </div>
           <div className="min-w-0">
-            <p className="text-base font-semibold text-[#F4F4F5]">{provider}</p>
-            <p className="mt-0.5 text-sm text-[#71717A]">
+            <p className="text-base font-semibold text-text">{provider}</p>
+            <p className="mt-0.5 text-sm text-dim">
               {connected ? 'Connected and answering calls' : hint || 'Not configured'}
             </p>
           </div>
@@ -96,23 +96,23 @@ export function CallCenterStatus() {
           className={
             'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ' +
             (connected
-              ? 'border-[#10B981]/20 bg-[#10B981]/10 text-[#10B981]'
-              : 'border-[#F59E0B]/20 bg-[#F59E0B]/10 text-[#F59E0B]')
+              ? 'border-good/20 bg-good/10 text-good'
+              : 'border-warn/20 bg-warn/10 text-warn')
           }
         >
-          <span className={'h-1.5 w-1.5 rounded-full ' + (connected ? 'bg-[#10B981]' : 'bg-[#F59E0B]')} />
+          <span className={'h-1.5 w-1.5 rounded-full ' + (connected ? 'bg-good' : 'bg-warn')} />
           {connected ? 'Connected' : 'Configure API key'}
         </span>
       </div>
 
       {/* Last 5 calls */}
       <div className="px-5 py-4">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-[#71717A]">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-dim">
           Recent calls
         </p>
 
         {calls.length === 0 ? (
-          <p className="py-6 text-center text-sm text-[#71717A]">
+          <p className="py-6 text-center text-sm text-dim">
             No calls recorded yet.
           </p>
         ) : (
@@ -120,43 +120,43 @@ export function CallCenterStatus() {
             {calls.map((c) => (
               <div
                 key={c.id}
-                className="flex items-start gap-3 rounded-lg border border-[#1F1F23] bg-[#17171A] p-3"
+                className="flex items-start gap-3 rounded-lg border border-line bg-raised p-3"
               >
                 <div className="mt-0.5 flex-shrink-0">
                   {c.escalated ? (
-                    <AlertTriangle className="h-4 w-4 text-[#EF4444]" />
+                    <AlertTriangle className="h-4 w-4 text-crit" />
                   ) : c.direction === 'outbound' ? (
-                    <PhoneOutgoing className="h-4 w-4 text-[#71717A]" />
+                    <PhoneOutgoing className="h-4 w-4 text-dim" />
                   ) : (
-                    <PhoneIncoming className="h-4 w-4 text-[#71717A]" />
+                    <PhoneIncoming className="h-4 w-4 text-dim" />
                   )}
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-sm font-medium text-[#F4F4F5]">
+                    <span className="text-sm font-medium text-text">
                       {c.caller_number || 'Unknown number'}
                     </span>
                     {c.resolved && (
-                      <span className="rounded-full border border-[#10B981]/20 bg-[#10B981]/10 px-1.5 py-px text-[10px] font-medium text-[#10B981]">
+                      <span className="rounded-full border border-good/20 bg-good/10 px-1.5 py-px text-[10px] font-medium text-good">
                         resolved
                       </span>
                     )}
                     {c.escalated && (
-                      <span className="rounded-full border border-[#EF4444]/20 bg-[#EF4444]/10 px-1.5 py-px text-[10px] font-medium text-[#EF4444]">
+                      <span className="rounded-full border border-crit/20 bg-crit/10 px-1.5 py-px text-[10px] font-medium text-crit">
                         escalated
                       </span>
                     )}
                   </div>
                   {c.summary && (
-                    <p className="mt-1 line-clamp-2 text-sm text-[#A1A1AA]">{c.summary}</p>
+                    <p className="mt-1 line-clamp-2 text-sm text-muted">{c.summary}</p>
                   )}
                 </div>
 
                 <div className="flex-shrink-0 text-right">
-                  <p className="text-xs text-[#71717A]">{when(c.created_at)}</p>
+                  <p className="text-xs text-dim">{when(c.created_at)}</p>
                   {duration(c.duration_sec) && (
-                    <p className="mt-0.5 text-xs text-[#52525B]">{duration(c.duration_sec)}</p>
+                    <p className="mt-0.5 text-xs text-faint">{duration(c.duration_sec)}</p>
                   )}
                 </div>
               </div>

@@ -34,8 +34,8 @@
   }
 
   var SID = ss(K_SID);
-  if (!SID) {
-    SID = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  if (!SID || !/^[a-f0-9-]{32,64}$/i.test(SID)) {
+    SID = Array.from(crypto.getRandomValues(new Uint8Array(24)), function (b) { return b.toString(16).padStart(2, '0'); }).join('');
     ss(K_SID, SID);
   }
 
@@ -43,6 +43,7 @@
   var open         = false;
   var busy         = false;
   var bookingShown = false;
+  var handoffAttempt = null;
   var history      = [];
 
   try { var h = ss(K_CONV); if (h) history = JSON.parse(h); } catch (_) {}
@@ -261,6 +262,7 @@
     var panel = $id('bos-panel');
     var btn   = $id('bos-btn');
     if (!panel || !btn) return;
+    btn.classList.toggle('bos-open', open);
 
     if (open) {
       panel.removeAttribute('hidden');
@@ -273,12 +275,15 @@
       if (!history.length) {
         addMsg('assistant', cfg.greeting || 'Hi! How can I help you today?', false);
       }
-      setTimeout(function () { var i = $id('bos-inp'); if (i) i.focus(); }, 260);
+      btn.setAttribute('aria-expanded', 'true');
+      setTimeout(function () { var i = $id('bos-help').style.display === 'flex' ? $id('bos-help-name') : $id('bos-inp'); if (open && i) i.focus(); }, 260);
     } else {
       panel.classList.remove('bos-on');
-      setTimeout(function () { panel.setAttribute('hidden', ''); }, 240);
+      setTimeout(function () { if (!open) panel.setAttribute('hidden', ''); }, 240);
       btn.innerHTML = ICON_CHAT;
       btn.setAttribute('aria-label', 'Open chat');
+      btn.setAttribute('aria-expanded', 'false');
+      btn.focus();
     }
   }
 
@@ -312,7 +317,7 @@
       headers: { 'Content-Type': 'application/json' },
       body:    payload,
     })
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || 'Your message could not be saved.'); return d; }); })
       .then(function (d) {
         setTyping(false);
         addMsg('assistant', d.response || 'Sorry, I could not understand that.', true);
@@ -322,9 +327,9 @@
           setTimeout(function () { showBookingCard(d.booking_card); }, 400);
         }
       })
-      .catch(function () {
+      .catch(function (error) {
         setTyping(false);
-        addMsg('assistant', "I’m having trouble connecting right now. Please try again in a moment.", true);
+        addMsg('assistant', error.message || 'Your message could not be saved. Please contact the business directly.', false);
       })
       .finally(function () {
         busy = false;
@@ -332,6 +337,57 @@
         if (snd) snd.disabled = false;
         inp.focus();
       });
+  }
+
+  function requestKey() {
+    var bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 15) | 64; bytes[8] = (bytes[8] & 63) | 128;
+    var hex = Array.from(bytes, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+    return hex.slice(0,8) + '-' + hex.slice(8,12) + '-' + hex.slice(12,16) + '-' + hex.slice(16,20) + '-' + hex.slice(20);
+  }
+
+  function showHelp(show) {
+    $id('bos-help').style.display = show ? 'flex' : 'none';
+    $id('bos-msgs').style.display = show ? 'none' : 'flex';
+    $id('bos-foot').style.display = show ? 'none' : 'flex';
+    $id('bos-help-toggle').style.display = show ? 'none' : 'block';
+    (show ? $id('bos-help-name') : $id('bos-inp')).focus();
+  }
+
+  function buildHelpForm() {
+    var form = document.createElement('form'); form.id = 'bos-help'; form.style.display = 'none';
+    var explanation = document.createElement('p');
+    explanation.textContent = 'Your details and question will be saved for the business. This is not live chat. Use the business’s phone number for urgent help.';
+    form.appendChild(explanation);
+    var inputs = {};
+    [['name','Name (optional)','text',100],['email','Email','email',254],['phone','Phone with country code (for example +14155550123)','tel',16],['reason','How can the team help?','textarea',1000]].forEach(function (spec) {
+      var label = document.createElement('label'); label.textContent = spec[1];
+      var input = document.createElement(spec[2] === 'textarea' ? 'textarea' : 'input');
+      if (spec[2] !== 'textarea') input.type = spec[2];
+      input.id = 'bos-help-' + spec[0]; input.maxLength = spec[3]; input.required = spec[0] === 'reason';
+      label.htmlFor = input.id; label.appendChild(input); form.appendChild(label); inputs[spec[0]] = input;
+    });
+    var hint = document.createElement('p'); hint.textContent = 'Provide an email or phone number so the team can respond.'; form.appendChild(hint);
+    var status = document.createElement('p'); status.setAttribute('role','status'); form.appendChild(status);
+    var submit = document.createElement('button'); submit.type = 'submit'; submit.textContent = 'Save request for the team'; form.appendChild(submit);
+    var cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Back to chat'; cancel.addEventListener('click',function () { showHelp(false); }); form.appendChild(cancel);
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var details = { name: inputs.name.value.trim(), email: inputs.email.value.trim(), phone: inputs.phone.value.trim(), reason: inputs.reason.value.trim() };
+      if (!details.email && !details.phone) { status.textContent = 'Add an email or phone number.'; return; }
+      var fingerprint = JSON.stringify(details);
+      if (!handoffAttempt || handoffAttempt.fingerprint !== fingerprint) handoffAttempt = { fingerprint: fingerprint, key: requestKey() };
+      var payload = Object.assign({ client_id: CLIENT_ID, session_id: SID, request_key: handoffAttempt.key }, details);
+      submit.disabled = true; cancel.disabled = true; Object.keys(inputs).forEach(function (key) { inputs[key].disabled = true; });
+      status.textContent = 'Saving your request…';
+      var controller = new AbortController(); var timer = setTimeout(function () { controller.abort(); }, 15000);
+      fetch(API_ORIGIN + '/api/widget/handoff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal })
+        .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || 'Your request could not be saved.'); return d; }); })
+        .then(function (d) { if (!d.saved) throw new Error('Your request could not be saved.'); status.textContent = d.message; handoffAttempt = null; })
+        .catch(function (error) { status.textContent = error.name === 'AbortError' ? 'The save could not be confirmed. Retry with the same details.' : error.message; })
+        .finally(function () { clearTimeout(timer); submit.disabled = false; cancel.disabled = false; Object.keys(inputs).forEach(function (key) { inputs[key].disabled = false; }); });
+    });
+    return form;
   }
 
   // ── Inline SVG icons ─────────────────────────────────────────────────────
@@ -354,6 +410,8 @@
     btn.id        = 'bos-btn';
     btn.innerHTML = ICON_CHAT;
     btn.setAttribute('aria-label', 'Open chat');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-controls', 'bos-panel');
     btn.style.background = cfg.color;
     btn.addEventListener('click', toggle);
     document.body.appendChild(btn);
@@ -364,6 +422,7 @@
     panel.setAttribute('hidden', '');
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-label', 'Chat with ' + cfg.name);
+    panel.addEventListener('keydown', function (event) { if (event.key === 'Escape' && open) toggle(); });
 
     // Header
     var hd  = document.createElement('div');
@@ -380,7 +439,7 @@
     nm.textContent = cfg.name;
     var sts  = document.createElement('div');
     sts.className  = 'bos-sts';
-    sts.textContent = '● Online · AI powered';
+    sts.textContent = 'AI assistant';
     info.appendChild(nm);
     info.appendChild(sts);
 
@@ -420,12 +479,17 @@
     typ.appendChild(dots);
     panel.appendChild(typ);
 
+    panel.appendChild(buildHelpForm());
+    var help = document.createElement('button'); help.id = 'bos-help-toggle'; help.type = 'button'; help.textContent = 'Request human help';
+    help.addEventListener('click', function () { if (!busy) showHelp(true); }); panel.appendChild(help);
+
     // Footer / input area
     var foot = document.createElement('div');
     foot.id  = 'bos-foot';
 
     var inp  = document.createElement('textarea');
     inp.id   = 'bos-inp';
+    inp.maxLength = 2000;
     inp.setAttribute('placeholder', 'Type a message…');
     inp.setAttribute('rows', '1');
     inp.setAttribute('aria-label', 'Chat message');
@@ -454,7 +518,7 @@
   // ── CSS (scoped to #bos-btn and #bos-panel) ──────────────────────────────
   var CSS = [
     /* Reset only widget elements */
-    '#bos-btn,#bos-btn *,#bos-panel,#bos-panel *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}',
+    ':where(#bos-btn,#bos-btn *,#bos-panel,#bos-panel *){box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}',
 
     /* Toggle button */
     '#bos-btn{position:fixed;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(0,0,0,.35);z-index:2147483646;transition:transform .2s ease,box-shadow .2s ease;outline:none}',
@@ -462,12 +526,12 @@
     '#bos-btn:focus-visible{outline:3px solid rgba(255,255,255,.5);outline-offset:2px}',
 
     /* Panel */
-    '#bos-panel{position:fixed;bottom:96px;right:24px;width:380px;height:580px;background:#0f172a;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 48px rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.07);z-index:2147483645;opacity:0;transform:translateY(16px) scale(.97);transition:opacity .22s ease,transform .22s ease;pointer-events:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}',
-    '#bos-panel[hidden]{display:flex!important}',
+    '#bos-panel{position:fixed;bottom:96px;right:24px;width:380px;height:580px;max-height:calc(100vh - 112px);background:#0f172a;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 48px rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.07);z-index:2147483645;opacity:0;transform:translateY(16px) scale(.97);transition:opacity .22s ease,transform .22s ease;pointer-events:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}',
+    '#bos-panel[hidden]{display:none!important}',
     '#bos-panel.bos-on{opacity:1;transform:none;pointer-events:all}',
 
     /* Mobile: full screen */
-    '@media(max-width:500px){#bos-panel{bottom:0;right:0;left:0;width:100%;height:100%;border-radius:0;border:none}#bos-btn{bottom:16px;right:16px}}',
+    '@media(max-width:500px){#bos-panel{bottom:0;right:0;left:0;width:100%;height:100%;max-height:100%;border-radius:0;border:none}#bos-btn{bottom:16px;right:16px}#bos-btn.bos-open{display:none}}',
 
     /* Header */
     '#bos-hd{display:flex;align-items:center;gap:10px;padding:13px 14px;flex-shrink:0}',
@@ -519,6 +583,13 @@
     'a.bos-book-p:hover{text-decoration:underline}',
     '.bos-book-a{display:inline-block;background:#2563eb;color:#fff!important;text-decoration:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;transition:opacity .15s}',
     '.bos-book-a:hover{opacity:.85}',
+    '#bos-help-toggle{border:0;background:#1e293b;color:#e2e8f0;min-height:44px;font-size:13px;cursor:pointer;flex-shrink:0}',
+    '#bos-help{flex:1;min-height:0;overflow:auto;flex-direction:column;gap:12px;padding:16px;color:#e2e8f0;font-size:13px}',
+    '#bos-help p{line-height:1.5}#bos-help label{display:block;line-height:1.4}',
+    '#bos-help input,#bos-help textarea{display:block;width:100%;min-height:44px;border:1px solid #64748b;border-radius:8px;background:#1e293b;color:#f8fafc;padding:10px;font:inherit;margin-top:5px}',
+    '#bos-help textarea{min-height:80px;resize:vertical}#bos-help button{min-height:44px;padding:10px;border-radius:8px;border:1px solid #64748b;background:#1e293b;color:#f8fafc;font:inherit;cursor:pointer}',
+    '#bos-help button:disabled{opacity:.5}#bos-panel button:focus-visible{outline:2px solid #93c5fd;outline-offset:-2px}',
+    '@media(prefers-reduced-motion:reduce){#bos-panel,#bos-btn{transition:none;transform:none}#bos-msgs{scroll-behavior:auto}.bos-dots span{animation:none}}',
   ].join('');
 
   // ── Bootstrap ────────────────────────────────────────────────────────────

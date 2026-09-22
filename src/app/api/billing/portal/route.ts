@@ -1,6 +1,6 @@
 import { createRouteClient } from '@/lib/supabase-route';
 import { NextResponse } from 'next/server';
-import { getStripe } from '@/lib/stripe';
+import { getStripe, billingOrigin } from '@/lib/stripe';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 export async function POST(req: Request) {
@@ -31,12 +31,12 @@ export async function POST(req: Request) {
 
     // Mock bypass for dev without keys
     if (!process.env.STRIPE_SECRET_KEY) {
-      return NextResponse.json({ url: '/dashboard/billing?portal=mock' });
+      return NextResponse.json({ error: 'Billing is not configured.' }, { status: 503 });
     }
 
     const portalSession = await getStripe().billingPortal.sessions.create({
       customer: client.stripe_customer_id,
-      return_url: `${req.headers.get('origin')}/dashboard/billing`,
+      return_url: `${billingOrigin()}/dashboard/billing`,
     });
 
     return NextResponse.json({ url: portalSession.url });

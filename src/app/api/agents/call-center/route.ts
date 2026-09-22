@@ -98,7 +98,9 @@ export async function runCallCenter(
         mode: 'script',
         company_name: brand.company_name,
         script: buildScript(brand, faqContext),
-        ready: true,
+        ready: false,
+        status: 'draft',
+        requires_review: true,
       },
     };
   }
@@ -118,7 +120,7 @@ export async function runCallCenter(
     
     if (contact) {
       contact_id = contact.id;
-      const history = await getContactHistory({ contact_id: contact.id });
+      const history = await getContactHistory({ client_id, contact_id: contact.id });
       at_risk = history.some(h => h.sentiment_score !== null && h.sentiment_score < 40);
     }
   }
@@ -131,7 +133,7 @@ export async function runCallCenter(
   const brandContext = await retrieveContext(
     'brand voice tone and communication style',
     client_id,
-    'contact'
+    'voice'
   );
 
   // ── CORE ACTION ────────────────────────────────────────────────────────
@@ -173,7 +175,11 @@ Return ONLY valid JSON:
     return { status: 500, body: { success: false, error: err?.message || String(err) } };
   }
 
-  const outcome = analysis.outcome || 'missed';
+  if (typeof analysis.summary !== 'string' || !analysis.summary.trim() || !['resolved','escalated','missed'].includes(analysis.outcome)
+    || (analysis.sentiment_score != null && (!Number.isInteger(analysis.sentiment_score) || analysis.sentiment_score < 0 || analysis.sentiment_score > 100))) {
+    return { status: 502, body: { error: 'The call assessment was invalid.' } };
+  }
+  const outcome = analysis.outcome;
   const escalated = outcome === 'escalated';
   const summaryText = analysis.summary || '';
   const sentimentScore = analysis.sentiment_score ?? null;
@@ -191,7 +197,11 @@ Return ONLY valid JSON:
     sentiment_score: sentimentScore,
     escalated: escalated,
     direction: 'inbound',
+    resolved: outcome === 'resolved',
+    analysis_status: 'completed',
+    analyzed_at: new Date().toISOString(),
   });
+  if (dbError) return { status: 503, body: { error: 'Call assessment could not be saved.' } };
 
   if (contact_id) {
     await logInteraction({
@@ -211,7 +221,7 @@ Return ONLY valid JSON:
 
     const score_delta = outcome === 'resolved' ? 5 : (escalated ? -10 : 0);
     if (score_delta !== 0) {
-      await updateContactScore({ contact_id, score_delta });
+      await updateContactScore({ client_id, contact_id, score_delta });
     }
   }
 

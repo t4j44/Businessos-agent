@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { callAI, MODELS, parseJSON } from '@/lib/ai';
-import { getClientContext } from '@/lib/supabase';
+import { isUuid, readJsonBody } from '@/lib/validation';
+import { getClientContext, supabaseAdmin } from '@/lib/supabase';
 import { logAgentRun } from '@/lib/log';
-import { findOrCreateContact, logInteraction, updateContactScore, getContactHistory } from '@/lib/contacts';
-import { retrieveContext, storeRAGChunk } from '@/lib/embeddings';
+import { findOrCreateContact, getContactHistory } from '@/lib/contacts';
+import { retrieveContext } from '@/lib/embeddings';
 import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
 
 const NEUTRAL_TONE =
@@ -102,7 +103,7 @@ async function generateWithRetry(
     } catch (e: any) {
       lastParseError = e;
       console.error(
-        `[invoice-chase] JSON parse failed (attempt ${attempt}/${MAX_ATTEMPTS}): ${e?.message}\nRAW MODEL OUTPUT >>>\n${ai.text}\n<<< END RAW`,
+        `[invoice-chase] JSON parse failed (attempt ${attempt}/${MAX_ATTEMPTS}): ${e?.message}\nprovider output omitted`,
       );
     }
   }
@@ -142,7 +143,7 @@ export async function runInvoiceChase(params: {
     });
     if (contact) {
       contactId = contact.id;
-      const history = await getContactHistory({ contact_id: contactId });
+      const history = await getContactHistory({ client_id, contact_id: contactId });
       
       hasNegativeHistory = history.some(
         (h) => h.sentiment_score !== null && h.sentiment_score < 50
@@ -150,7 +151,7 @@ export async function runInvoiceChase(params: {
     }
   }
 
-  const voiceContext = await retrieveContext('brand voice tone and communication style', client_id, 'contact');
+  const voiceContext = await retrieveContext('brand voice tone and communication style', client_id, 'voice');
 
   // ── CORE ACTION ────────────────────────────────────────────────────────
   const { brand } = await getClientContext(client_id);
@@ -202,29 +203,8 @@ export async function runInvoiceChase(params: {
     }
   }
 
-  // ── AFTER ACTING ────────────────────────────────────────────────────────
-  if (contactId) {
-    await logInteraction({
-      contact_id: contactId,
-      client_id,
-      agent_name: 'invoice_chase',
-      interaction_type: 'invoice_chase_step_' + chase_step,
-      summary: 'Invoice chase step ' + chase_step + ' sent to ' + customer_name + ' for $' + amount_due,
-      sentiment_score: undefined,
-      metadata: { invoice_id, amount_due, days_overdue, chase_step, message_sent: chase_step !== 5 },
-    });
-
-    const scoreDelta = -5 * chase_step;
-    await updateContactScore({ contact_id: contactId, score_delta: scoreDelta });
-  }
-
-  await storeRAGChunk({
-    client_id,
-    content: 'Invoice chase: ' + customer_name + ' owes $' + amount_due + ', on step ' + chase_step + ', ' + days_overdue + ' days overdue',
-    chunk_type: 'contact',
-    source_agent: 'invoice_chase',
-  });
-
+  // This function generates a draft only. Sending, score changes, and customer
+  // interactions require a confirmed provider action in a separate workflow.
   await logAgentRun({
     client_id,
     agent_type: 'invoice_chase',
@@ -232,7 +212,7 @@ export async function runInvoiceChase(params: {
     input_tokens: ai?.inputTokens || 0,
     output_tokens: ai?.outputTokens || 0,
     cost_usd: ai?.cost || 0,
-    output_summary: `Chase step ${chase_step} processed for invoice ${invoice_id}`,
+    output_summary: `Chase step ${chase_step} drafted for invoice ${invoice_id}`,
     metadata: { invoice_id, chase_step, contact_id: contactId },
   });
 
@@ -243,8 +223,11 @@ export async function runInvoiceChase(params: {
       chase_step,
       message,
       contact_id: contactId,
-      fdcpa_compliant: chase_step === 4,
-      escalated: chase_step === 5,
+      channel,
+      delivery_status: 'draft',
+      sent: false,
+      requires_review: true,
+      escalation_recommended: chase_step === 5,
     },
   };
 }
@@ -269,23 +252,18 @@ export async function POST(req: Request) {
   try {
     const body = reqBody;
     const client_id = clientId;
-    const customer_email = body.customer_email;
-    const customer_name = body.customer_name;
-    const invoice_id = body.invoice_id ?? body.invoice_number;
-    const amount_due = body.amount_due ?? (body.amount_cents != null ? body.amount_cents / 100 : null);
-    const days_overdue = body.days_overdue || 0;
-    const chase_step = body.chase_step;
-
-    if (!client_id || !customer_name || amount_due == null || !invoice_id || !chase_step) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'client_id, customer_name, amount_due, invoice_id, and chase_step are required.',
-        },
-        { status: 400 },
-      );
-    }
-
+    if (!isUuid(body.invoice_id)) return NextResponse.json({ error: 'Choose a stored invoice.' }, { status: 400 });
+    const { data: invoice, error } = await supabaseAdmin.from('invoices').select('*').eq('client_id', client_id).eq('id', body.invoice_id).maybeSingle();
+    if (error) return NextResponse.json({ error: 'Invoice could not be loaded.' }, { status: 503 });
+    if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (!['sent','overdue'].includes(invoice.status) || !invoice.due_date) return NextResponse.json({ error: 'This invoice is not eligible for a reminder.' }, { status: 409 });
+    const days_overdue = Math.floor((Date.now() - Date.parse(invoice.due_date + 'T00:00:00Z')) / 86400000);
+    const chase_step = Number(invoice.chase_step || 0) + 1;
+    if (chase_step > 5 || days_overdue < [1,4,8,15,22][chase_step-1]) return NextResponse.json({ error: 'The next reminder is not due yet.' }, { status: 409 });
+    const customer_email = invoice.customer_email;
+    const customer_name = invoice.customer_name || 'Customer';
+    const invoice_id = invoice.stripe_invoice_id || invoice.id.slice(0,8);
+    const amount_due = invoice.amount_cents / 100;
     const { status, body: resultBody } = await runInvoiceChase({
       client_id,
       customer_email,
@@ -293,7 +271,7 @@ export async function POST(req: Request) {
       invoice_id,
       amount_due,
       days_overdue,
-      chase_step,
+      chase_step: chase_step as ChaseStep,
     });
     return NextResponse.json(resultBody, { status });
   } catch (err: any) {

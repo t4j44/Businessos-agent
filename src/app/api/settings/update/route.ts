@@ -59,21 +59,11 @@ export async function PATCH(req: Request) {
     }
 
     if (Object.keys(brandPatch).length > 0) {
-      // A client that has never been analysed has no brand_profiles row yet,
-      // so an update would silently affect zero rows.
-      const { data: existing } = await supabaseAdmin
-        .from('brand_profiles')
-        .select('id')
-        .eq('client_id', client_id)
-        .maybeSingle();
-
-      const { error } = existing
-        ? await supabaseAdmin.from('brand_profiles').update(brandPatch).eq('id', existing.id)
-        : await supabaseAdmin.from('brand_profiles').insert({ client_id, ...brandPatch });
-
-      if (error) {
-        console.error('[settings/update] brand_profiles write failed:', error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      for (const [field, value] of Object.entries(brandPatch)) {
+        if (typeof value !== 'string') return NextResponse.json({ error: 'Brand corrections must be text.' }, { status: 400 });
+        const { data, error } = await supabaseAdmin.rpc('edit_brand_field', { p_client_id: client_id, p_field: field, p_value: value });
+        if (error) return NextResponse.json({ error: 'Brand correction could not be saved.' }, { status: 503 });
+        if (!data) return NextResponse.json({ error: 'Create your brand profile first.' }, { status: 404 });
       }
     }
 

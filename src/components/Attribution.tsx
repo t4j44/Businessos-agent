@@ -6,7 +6,7 @@
 // Hunter page while leads are sourced from Overture.
 export function Attribution() {
   return (
-    <p className="px-1 pt-3 text-[11px] leading-relaxed text-[#52525B]">
+    <p className="px-1 pt-3 text-[11px] leading-relaxed text-faint">
       Place data © Overture Maps Foundation, available under CDLA Permissive 2.0.
       <br />
       Includes data from Foursquare. Copyright 2024 Foursquare Labs, Inc.

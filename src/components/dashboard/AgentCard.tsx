@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Play, Loader2, ArrowUpRight } from 'lucide-react'
+import { Play, ArrowUpRight } from 'lucide-react'
 import { StatusPill } from './StatusPill'
+import { Pending } from '@/components/ui/Skeleton'
 import {
   type AgentDefinition,
   type RunStatus,
@@ -56,26 +57,34 @@ export function AgentCard({
   }
 
   return (
-    <div className="flex flex-col rounded-lg border border-[#1F1F23] bg-[#111113] p-4 transition-colors hover:border-[#2A2A30]">
+    <div
+      className={
+        'glass glass-interactive flex flex-col rounded-lg p-4' +
+        // A running agent keeps a steady accent glow. Steady, not pulsing —
+        // the StatusPill already says Running, and two things blinking at the
+        // same fact is noise.
+        (status === 'running' ? ' glass-live' : '')
+      }
+    >
       {/* Name + status */}
       <div className="flex items-start justify-between gap-3">
         <Link
           href={agent.href}
           className="group min-w-0 focus:outline-none focus-visible:underline"
         >
-          <span className="flex items-center gap-1 text-base font-semibold leading-6 text-[#F4F4F5]">
-            <span className="truncate">{agent.name}</span>
-            <ArrowUpRight className="h-3.5 w-3.5 flex-shrink-0 text-[#52525B] transition-colors group-hover:text-[#A1A1AA]" />
+          <span className="flex items-center gap-1">
+            <span className="label-caps truncate text-text">{agent.name}</span>
+            <ArrowUpRight className="h-3.5 w-3.5 flex-shrink-0 text-faint transition-colors group-hover:text-muted" />
           </span>
         </Link>
         <StatusPill status={status} />
       </div>
 
-      <p className="mt-1 text-sm leading-5 text-[#71717A]">{agent.description}</p>
+      <p className="mt-1 text-sm leading-5 text-dim">{agent.description}</p>
 
       {/* Last run + action */}
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#1F1F23] pt-3">
-        <span className="min-w-0 truncate text-xs text-[#71717A]">
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
+        <span className="numeric min-w-0 truncate text-xs text-dim">
           {busy ? 'Running now…' : relativeTime(run.lastRunAt)}
         </span>
 
@@ -84,10 +93,10 @@ export function AgentCard({
             type="button"
             onClick={handleRun}
             disabled={busy}
-            className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-[#1F1F23] bg-transparent px-2.5 py-1.5 text-xs font-medium text-[#A1A1AA] transition-colors hover:border-[#7C3AED]/40 hover:text-[#F4F4F5] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED]/40 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-line bg-transparent px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:border-accent/40 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Pending />
             ) : (
               <Play className="h-3 w-3" />
             )}
@@ -97,7 +106,7 @@ export function AgentCard({
           // Event-driven agents have no on-demand entry point, so the card
           // says what actually starts them rather than offering a dead button.
           <span
-            className="flex-shrink-0 text-xs text-[#52525B]"
+            className="flex-shrink-0 text-xs text-faint"
             title={agent.eventNote}
           >
             {agent.eventNote ?? 'Automatic'}
@@ -105,7 +114,7 @@ export function AgentCard({
         )}
       </div>
 
-      {error && <p className="mt-2 text-xs text-[#EF4444]">{error}</p>}
+      {error && <p className="mt-2 text-xs text-crit">{error}</p>}
     </div>
   )
 }

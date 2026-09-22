@@ -4,23 +4,23 @@ import type { RunStatus } from '@/lib/agent-catalog'
 // running = amber, success = emerald, error = red, never = grey.
 const STYLES: Record<RunStatus, { wrap: string; dot: string; label: string }> = {
   running: {
-    wrap: 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20',
-    dot: 'bg-[#F59E0B] animate-pulse',
+    wrap: 'bg-warn/10 text-warn border-warn/20',
+    dot: 'bg-warn animate-pulse',
     label: 'Running',
   },
   success: {
-    wrap: 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20',
-    dot: 'bg-[#10B981]',
+    wrap: 'bg-good/10 text-good border-good/20',
+    dot: 'bg-good',
     label: 'Success',
   },
   error: {
-    wrap: 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20',
-    dot: 'bg-[#EF4444]',
+    wrap: 'bg-crit/10 text-crit border-crit/20',
+    dot: 'bg-crit',
     label: 'Error',
   },
   never: {
-    wrap: 'bg-[#52525B]/10 text-[#71717A] border-[#52525B]/20',
-    dot: 'bg-[#52525B]',
+    wrap: 'bg-faint/10 text-dim border-faint/20',
+    dot: 'bg-faint',
     label: 'Never run',
   },
 }

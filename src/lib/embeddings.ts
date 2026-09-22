@@ -2,15 +2,10 @@
 // OPENROUTER_API_KEY is not a NEXT_PUBLIC_ variable, so nothing here can run in
 // the browser, and this module carries no client directive.
 //
-// NOTE ON THE MODEL ID: the id is lowercase 'baai/bge-m3'. OpenRouter model ids
-// are lowercase ('anthropic/claude-sonnet-5', 'meta-llama/llama-3.3-70b-instruct');
-// 'BAAI/bge-m3' is the HuggingFace spelling and 404s here.
-//
-// CLAUDE.md targets 'google/gemini-embedding-2:free', but that model does not
-// exist on OpenRouter, and the documented fallback 'nvidia/nemotron-3-embed-1b:free'
-// emits 2048 dims — incompatible with rag_chunks.embedding VECTOR(1024).
-// 'baai/bge-m3' returns 1024 natively. Other verified 1024-capable options:
-// google/gemini-embedding-001, openai/text-embedding-3-small, qwen/qwen3-embedding-8b.
+// The existing database was embedded with baai/bge-m3. Keep that vector space
+// until a versioned reindex is complete. The requested Gemini free variant and
+// provider availability require verification; matching dimensions alone do not
+// make embeddings from different models comparable.
 
 import { supabaseAdmin } from './supabase'
 
@@ -41,6 +36,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
         // Required by CLAUDE.md: rag_chunks.embedding is VECTOR(1024).
         dimensions: EMBEDDING_DIMS,
       }),
+      signal: AbortSignal.timeout(20_000),
     })
   } catch (e: any) {
     throw new Error(`Embedding request to OpenRouter failed: ${e?.message || String(e)}`)
@@ -61,7 +57,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
       `OpenRouter embeddings returned no vector: ${JSON.stringify(data).slice(0, 300)}`
     )
   }
-  if (embedding.length !== EMBEDDING_DIMS) {
+  if (embedding.length !== EMBEDDING_DIMS || !embedding.every((n: unknown) => typeof n === 'number' && Number.isFinite(n))) {
     throw new Error(
       `Embedding has ${embedding.length} dimensions, expected ${EMBEDDING_DIMS} — rag_chunks.embedding is VECTOR(${EMBEDDING_DIMS}) and will reject this.`
     )
@@ -84,13 +80,20 @@ export async function createEmbedding(text: string): Promise<number[] | null> {
 }
 
 // ── Store ────────────────────────────────────────────────────────────────────
+/**
+ * Returns true only when a row was actually inserted.
+ *
+ * It used to return void and swallow both failure modes, so callers counted
+ * attempts and reported them as stores — brand-scout logged "stored 3
+ * structured chunks" while rag_chunks stayed empty.
+ */
 export async function storeRAGChunk(params: {
   client_id: string
   content: string
   chunk_type: string
   source_agent: string
   metadata?: Record<string, unknown>
-}): Promise<void> {
+}): Promise<boolean> {
   try {
     const embedding = await generateEmbedding(params.content)
 
@@ -106,9 +109,12 @@ export async function storeRAGChunk(params: {
 
     if (error) {
       console.error('storeRAGChunk insert failed:', error.message)
+      return false
     }
+    return true
   } catch (e: any) {
     console.error('storeRAGChunk failed:', e?.message || e)
+    return false
   }
 }
 
@@ -128,7 +134,7 @@ export async function searchRAGChunks(params: {
       query_embedding: embedding,
       match_client_id: params.client_id,
       match_count: params.limit ?? 5,
-      filter_chunk_type: params.chunk_type ?? null,
+      filter_chunk_type: params.chunk_type ?? 'brand',
     })
 
     if (error) {
@@ -149,16 +155,16 @@ export async function searchRAGChunks(params: {
 
 // ── Existing helpers, unchanged behaviour ────────────────────────────────────
 
-// NOTE: `chunkType` is accepted but deliberately NOT applied. Its two callers
-// pass 'faq' and 'voice', and no agent writes chunk_type='faq' — honouring the
-// filter here would silently drop call-center's context to nothing. Use
-// searchRAGChunks when you want real type filtering.
+// Each caller explicitly selects a knowledge domain; no broad fallback.
 export async function retrieveContext(
   query: string,
   clientId: string,
   chunkType?: string,
   topK: number = 5
 ): Promise<string> {
+  // Customer history requires an explicit contact + tenant lookup. External
+  // research must be requested by type and never competes with brand facts.
+  if (chunkType === 'contact') return ''
   const embedding = await createEmbedding(query)
   if (!embedding) return ''
   try {
@@ -169,29 +175,30 @@ export async function retrieveContext(
       query_embedding: embedding,
       match_client_id: clientId,
       match_count: topK,
-      filter_chunk_type: chunkType ?? null,
+      filter_chunk_type: chunkType ?? 'brand',
     })
 
     if (!error && data) {
       return data.map((c: any) => c.content).join('\n\n')
     }
 
-    // Fall back to the original function if 006 has not been applied. The type
-    // filter is lost in that case, which is the previous behaviour.
-    if (error) {
-      console.warn('[rag] search_rag_chunks unavailable, falling back:', error.message)
-    }
-    const { data: legacy, error: legacyError } = await supabaseAdmin.rpc('match_rag_chunks', {
-      query_embedding: embedding,
-      match_client_id: clientId,
-      match_count: topK,
-    })
-    if (legacyError || !legacy) return ''
-    return legacy.map((c: any) => c.content).join('\n\n')
+    // A missing migration must never broaden retrieval into customer history.
+    if (error) console.warn('[rag] typed retrieval unavailable:', error.code)
+    return ''
   } catch (e) {
     console.error('RAG retrieval failed:', e)
     return ''
   }
+}
+
+export async function retrievePublicKnowledge(query: string, clientId: string): Promise<string> {
+  const embedding = await createEmbedding(query)
+  if (!embedding) return ''
+  const { data, error } = await supabaseAdmin.rpc('search_public_knowledge', {
+    query_embedding: embedding, match_client_id: clientId, match_count: 5,
+  })
+  if (error) throw new Error('Approved knowledge is temporarily unavailable.')
+  return (data || []).map((row: { content: string }) => row.content).join('\n\n').slice(0, 8000)
 }
 
 export async function storeChunk(
@@ -200,7 +207,7 @@ export async function storeChunk(
   chunkType: string,
   sourceUrl?: string
 ): Promise<boolean> {
-  if (!content || content.trim().length < 50) return false
+  if (!content || !content.trim()) return false
   try {
     const embedding = await createEmbedding(content)
     // A null embedding would insert a row that similarity search can never

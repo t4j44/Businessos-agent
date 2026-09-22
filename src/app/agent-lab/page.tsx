@@ -1,6 +1,9 @@
 'use client';
 
+import { sanitizeReportHtml } from '@/lib/report-html';
+
 import { useState } from 'react';
+import { Pending } from '@/components/ui/Skeleton';
 import {
   Play,
   Loader2,
@@ -85,7 +88,7 @@ function CallCenterResult({ data }: { data: any }) {
           Sample Call Analysis
         </p>
         <div className="flex flex-wrap gap-2">
-          <span className="text-xs font-medium px-2 py-1 rounded-full bg-[#2563EB]/20 text-[#2563EB]">
+          <span className="text-xs font-medium px-2 py-1 rounded-full bg-accent/20 text-accent">
             Sentiment: {analysis.sentiment_score ?? '—'}/100
           </span>
           <span
@@ -142,7 +145,7 @@ function InvoiceChaseResult({ data }: { data: any }) {
             {m.step ?? i + 1}
           </span>
           <div className="min-w-0">
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[#2563EB]/20 text-[#2563EB] uppercase">
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-accent/20 text-accent uppercase">
               {m.channel}
             </span>
             <p className="text-slate-300 text-sm mt-1 whitespace-pre-line leading-relaxed">{m.message}</p>
@@ -157,7 +160,7 @@ function BiReporterResult({ data }: { data: any }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-xs font-medium px-2 py-1 rounded-full bg-[#2563EB]/20 text-[#2563EB]">
+        <span className="text-xs font-medium px-2 py-1 rounded-full bg-accent/20 text-accent">
           WARE Score: {data.ware_score}
         </span>
         <span
@@ -169,7 +172,7 @@ function BiReporterResult({ data }: { data: any }) {
         </span>
       </div>
       <div className="bg-white rounded-lg p-5">
-        <div className="brief-content" dangerouslySetInnerHTML={{ __html: data.brief_html }} />
+        <div className="brief-content" dangerouslySetInnerHTML={{ __html: sanitizeReportHtml(data.brief_html) }} />
       </div>
     </div>
   );
@@ -234,11 +237,11 @@ function AgentCard({
   const Icon = agent.icon;
 
   return (
-    <div className="bg-[#1E293B] rounded-xl border border-slate-700/50 flex flex-col">
+    <div className="bg-surface rounded-xl border border-slate-700/50 flex flex-col">
       <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-slate-700/50">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-lg bg-[#2563EB]/15 flex items-center justify-center flex-shrink-0">
-            <Icon className="w-4 h-4 text-[#2563EB]" />
+          <div className="w-9 h-9 rounded-lg bg-accent/15 flex items-center justify-center flex-shrink-0">
+            <Icon className="w-4 h-4 text-accent" />
           </div>
           <div className="min-w-0">
             <h2 className="text-white font-semibold text-sm">{agent.name}</h2>
@@ -248,11 +251,11 @@ function AgentCard({
         <button
           onClick={onRun}
           disabled={state.loading}
-          className="flex-shrink-0 flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-white bg-[#2563EB] hover:bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 rounded-lg transition-colors"
+          className="flex-shrink-0 flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-white bg-accent hover:bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 rounded-lg transition-colors"
         >
           {state.loading ? (
             <>
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Running…
+              <Pending /> Running…
             </>
           ) : (
             <>
@@ -265,7 +268,7 @@ function AgentCard({
       <div className="p-5">
         {state.loading && (
           <div className="flex flex-col items-center justify-center gap-2 py-6 text-slate-500">
-            <Loader2 className="w-5 h-5 animate-spin text-[#2563EB]" />
+            <Pending />
             <p className="text-xs">Calling the agent — this can take 10–40s…</p>
           </div>
         )}
@@ -305,7 +308,7 @@ export default function AgentLabPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F172A] p-6 md:p-10">
+    <div className="min-h-screen bg-canvas p-6 md:p-10">
       <div className="max-w-5xl mx-auto space-y-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-white">Agent Lab</h1>

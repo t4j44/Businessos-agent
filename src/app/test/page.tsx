@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { Pending } from '@/components/ui/Skeleton';
 import {
   Building2, Phone, Star, Receipt, BarChart3, ListChecks,
   Crosshair, Eye, Target, Radio, Moon, Loader2, AlertTriangle,
@@ -113,14 +114,14 @@ const money = (v: number | undefined) => {
 // ── Shared bits ────────────────────────────────────────────────────────────
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-lg border border-[#1F1F23] bg-[#111113] ${className}`}>{children}</div>
+    <div className={`rounded-lg border border-line bg-surface ${className}`}>{children}</div>
   );
 }
 
 function Dot({ label, ok }: { label: string; ok: boolean | undefined }) {
-  const color = ok === undefined ? 'bg-[#52525B]' : ok ? 'bg-[#10B981]' : 'bg-[#EF4444]';
+  const color = ok === undefined ? 'bg-faint' : ok ? 'bg-good' : 'bg-crit';
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-[#71717A]" title={
+    <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={
       ok === undefined ? 'Checking…' : ok ? 'Configured' : 'Missing'
     }>
       <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
@@ -131,9 +132,9 @@ function Dot({ label, ok }: { label: string; ok: boolean | undefined }) {
 
 function Warning({ text }: { text: string }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-[#F59E0B]/25 bg-[#F59E0B]/10 px-3 py-2">
-      <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#F59E0B]" />
-      <p className="text-sm text-[#F59E0B]">{text}</p>
+    <div className="flex items-start gap-2 rounded-lg border border-warn/25 bg-warn/10 px-3 py-2">
+      <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-warn" />
+      <p className="text-sm text-warn">{text}</p>
     </div>
   );
 }
@@ -143,8 +144,8 @@ function Verdict({ pass }: { pass: boolean }) {
     <span className={
       'rounded-full border px-2 py-0.5 text-xs font-medium ' +
       (pass
-        ? 'border-[#10B981]/20 bg-[#10B981]/10 text-[#10B981]'
-        : 'border-[#EF4444]/20 bg-[#EF4444]/10 text-[#EF4444]')
+        ? 'border-good/20 bg-good/10 text-good'
+        : 'border-crit/20 bg-crit/10 text-crit')
     }>
       {pass ? 'PASS' : 'FAIL'}
     </span>
@@ -155,8 +156,8 @@ function List({ title, items }: { title: string; items: any[] | undefined }) {
   if (!Array.isArray(items) || items.length === 0) return null;
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wider text-[#71717A]">{title}</p>
-      <ul className="mt-1.5 list-disc space-y-1 pl-5 text-sm text-[#A1A1AA]">
+      <p className="text-xs font-medium uppercase tracking-wider text-dim">{title}</p>
+      <ul className="mt-1.5 list-disc space-y-1 pl-5 text-sm text-muted">
         {items.map((it, i) => (
           <li key={i}>{typeof it === 'string' ? it : JSON.stringify(it)}</li>
         ))}
@@ -166,7 +167,7 @@ function List({ title, items }: { title: string; items: any[] | undefined }) {
 }
 
 const field =
-  'w-full rounded-lg border border-[#1F1F23] bg-[#17171A] px-3 py-2 text-sm text-[#F4F4F5] placeholder:text-[#52525B] focus:border-[#7C3AED]/50 focus:outline-none';
+  'w-full rounded-lg border border-line bg-raised px-3 py-2 text-sm text-text placeholder:text-faint focus:border-accent/50 focus:outline-none';
 
 function RunButton({
   onClick, running, label, danger = false,
@@ -177,10 +178,10 @@ function RunButton({
       disabled={running}
       className={
         'inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ' +
-        (danger ? 'bg-[#B45309] hover:bg-[#92400E]' : 'bg-[#7C3AED] hover:bg-[#6D28D9]')
+        (danger ? 'bg-[#B45309] hover:bg-[#92400E]' : 'bg-accent hover:bg-accent-hover')
       }
     >
-      {running && <Loader2 className="h-4 w-4 animate-spin" />}
+      {running && <Pending />}
       {running ? 'Running…' : label}
     </button>
   );
@@ -274,15 +275,15 @@ export default function TestDashboard() {
   const renderGeneric = (id: string) => {
     const s = state(id);
     if (s.status === 'idle') return null;
-    if (s.status === 'running') return <p className="text-sm text-[#A1A1AA]">Running…</p>;
+    if (s.status === 'running') return <p className="text-sm text-muted">Running…</p>;
     return (
       <Card className="p-4">
         <div className="mb-2 flex items-center gap-2">
           <Verdict pass={s.status === 'pass'} />
-          <span className="text-xs text-[#71717A]">{money(s.cost)} · {s.ms}ms</span>
+          <span className="text-xs text-dim">{money(s.cost)} · {s.ms}ms</span>
         </div>
-        {s.error && <p className="mb-2 text-sm text-[#EF4444]">{s.error}</p>}
-        <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs text-[#71717A]">
+        {s.error && <p className="mb-2 text-sm text-crit">{s.error}</p>}
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs text-dim">
           {JSON.stringify(s.data, null, 2)}
         </pre>
       </Card>
@@ -302,22 +303,22 @@ export default function TestDashboard() {
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
             <Verdict pass={pass} />
-            <span className="text-xs text-[#71717A]">
+            <span className="text-xs text-dim">
               {d?.competitors_analysed ?? 0} competitors · {d?.sites_read ?? 0} sites read · {money(d?.cost_usd)}
             </span>
           </div>
-          {s.error && <p className="text-sm text-[#EF4444]">{s.error}</p>}
+          {s.error && <p className="text-sm text-crit">{s.error}</p>}
 
           {pass && (
             <div className="mb-3">
-              <p className="text-xs font-medium uppercase tracking-wider text-[#71717A]">
+              <p className="text-xs font-medium uppercase tracking-wider text-dim">
                 Threat level {level}/10
               </p>
-              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-[#1F1F23]">
+              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-line">
                 <div
                   className={
                     'h-full rounded-full ' +
-                    (level >= 8 ? 'bg-[#EF4444]' : level >= 5 ? 'bg-[#F59E0B]' : 'bg-[#10B981]')
+                    (level >= 8 ? 'bg-crit' : level >= 5 ? 'bg-warn' : 'bg-good')
                   }
                   style={{ width: `${level * 10}%` }}
                 />
@@ -325,7 +326,7 @@ export default function TestDashboard() {
             </div>
           )}
 
-          {d?.summary && <p className="text-sm text-[#A1A1AA]">{d.summary}</p>}
+          {d?.summary && <p className="text-sm text-muted">{d.summary}</p>}
         </Card>
 
         <Card className="space-y-3 p-4">
@@ -354,21 +355,21 @@ export default function TestDashboard() {
         <Card className="p-4">
           <div className="mb-2 flex items-center gap-2">
             <Verdict pass={pass} />
-            <span className="text-xs text-[#71717A]">
+            <span className="text-xs text-dim">
               {d?.reddit_posts_found ?? 0} reddit posts · {d?.rag_chunks_stored ?? 0} RAG chunks stored · {money(d?.cost_usd)}
             </span>
           </div>
-          {s.error && <p className="text-sm text-[#EF4444]">{s.error}</p>}
+          {s.error && <p className="text-sm text-crit">{s.error}</p>}
 
           {pains.length > 0 && (
             <div className="space-y-2">
               {pains.map((p: any, i: number) => (
-                <div key={i} className="rounded-lg border border-[#1F1F23] bg-[#17171A] p-3">
-                  <p className="text-sm font-medium text-[#F4F4F5]">{p.pain}</p>
+                <div key={i} className="rounded-lg border border-line bg-raised p-3">
+                  <p className="text-sm font-medium text-text">{p.pain}</p>
                   {p.exact_quote && (
-                    <p className="mt-1 text-sm italic text-[#A1A1AA]">&ldquo;{p.exact_quote}&rdquo;</p>
+                    <p className="mt-1 text-sm italic text-muted">&ldquo;{p.exact_quote}&rdquo;</p>
                   )}
-                  <p className="mt-1 text-xs text-[#71717A]">
+                  <p className="mt-1 text-xs text-dim">
                     {[p.emotion, p.frequency].filter(Boolean).join(' · ')}
                   </p>
                 </div>
@@ -402,41 +403,41 @@ export default function TestDashboard() {
         <Card className="p-4">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Verdict pass={pass} />
-            <span className="text-xs text-[#71717A]">
+            <span className="text-xs text-dim">
               {d?.reddit_posts_scanned ?? 0} posts scanned · {money(d?.cost_usd)}
             </span>
             <span className={
               'rounded-full border px-2 py-0.5 text-xs font-medium ' +
               (postToday > 0
-                ? 'border-[#10B981]/20 bg-[#10B981]/10 text-[#10B981]'
-                : 'border-[#2A2A30] bg-[#52525B]/10 text-[#71717A]')
+                ? 'border-good/20 bg-good/10 text-good'
+                : 'border-line-strong bg-faint/10 text-dim')
             }>
               {postToday} to post today
             </span>
           </div>
-          {s.error && <p className="text-sm text-[#EF4444]">{s.error}</p>}
-          {d?.top_opportunity && <p className="text-sm text-[#A1A1AA]">{d.top_opportunity}</p>}
+          {s.error && <p className="text-sm text-crit">{s.error}</p>}
+          {d?.top_opportunity && <p className="text-sm text-muted">{d.top_opportunity}</p>}
         </Card>
 
         {trends && trends.length > 0 && (
           <Card className="space-y-2 p-4">
             {trends.map((t: any, i: number) => (
-              <div key={i} className="rounded-lg border border-[#1F1F23] bg-[#17171A] p-3">
+              <div key={i} className="rounded-lg border border-line bg-raised p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-[#F4F4F5]">{t.topic}</span>
+                  <span className="text-sm font-medium text-text">{t.topic}</span>
                   <span className={
                     'rounded-full border px-2 py-0.5 text-[10px] font-medium ' +
                     (t.urgency === 'post today'
-                      ? 'border-[#EF4444]/20 bg-[#EF4444]/10 text-[#EF4444]'
+                      ? 'border-crit/20 bg-crit/10 text-crit'
                       : t.urgency === 'this week'
-                        ? 'border-[#F59E0B]/20 bg-[#F59E0B]/10 text-[#F59E0B]'
-                        : 'border-[#2A2A30] bg-[#52525B]/10 text-[#71717A]')
+                        ? 'border-warn/20 bg-warn/10 text-warn'
+                        : 'border-line-strong bg-faint/10 text-dim')
                   }>
                     {t.urgency}
                   </span>
                 </div>
                 {t.suggested_hook && (
-                  <p className="mt-1 text-sm text-[#A1A1AA]">{t.suggested_hook}</p>
+                  <p className="mt-1 text-sm text-muted">{t.suggested_hook}</p>
                 )}
               </div>
             ))}
@@ -460,15 +461,15 @@ export default function TestDashboard() {
         <Card className="p-4">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Verdict pass={pass} />
-            <span className="text-xs text-[#71717A]">
+            <span className="text-xs text-dim">
               {d?.agents_run ?? 0} agents · {money(cost)} · score {Number.isFinite(score) ? score : 'n/a'}/100
               {d?.week_start ? ` · week of ${d.week_start}` : ''}
             </span>
           </div>
-          {s.error && <p className="text-sm text-[#EF4444]">{s.error}</p>}
-          {d?.executive_summary && <p className="text-sm text-[#A1A1AA]">{d.executive_summary}</p>}
+          {s.error && <p className="text-sm text-crit">{s.error}</p>}
+          {d?.executive_summary && <p className="text-sm text-muted">{d.executive_summary}</p>}
           {d?.priority_alert && (
-            <p className="mt-2 rounded-lg border border-[#EF4444]/25 bg-[#EF4444]/10 px-3 py-2 text-sm text-[#EF4444]">
+            <p className="mt-2 rounded-lg border border-crit/25 bg-crit/10 px-3 py-2 text-sm text-crit">
               Priority alert: {d.priority_alert}
             </p>
           )}
@@ -482,8 +483,8 @@ export default function TestDashboard() {
               ['Trend opportunities', d?.trend_opportunities?.length ?? 0],
             ].map(([label, n]) => (
               <div key={String(label)}>
-                <p className="text-2xl font-semibold text-[#F4F4F5]">{String(n)}</p>
-                <p className="mt-0.5 text-xs text-[#71717A]">{label}</p>
+                <p className="text-2xl font-semibold text-text">{String(n)}</p>
+                <p className="mt-0.5 text-xs text-dim">{label}</p>
               </div>
             ))}
           </div>
@@ -493,15 +494,15 @@ export default function TestDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] p-6">
+    <div className="min-h-screen bg-canvas p-6">
       <div className="mx-auto max-w-4xl space-y-5">
 
         {/* Header + key status */}
         <div>
-          <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-[#F4F4F5]">
+          <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-text">
             Agent Test Dashboard
           </h1>
-          <p className="mt-1 text-sm text-[#71717A]">
+          <p className="mt-1 text-sm text-dim">
             Each test runs the real agent against the test client and costs real money.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -526,7 +527,7 @@ export default function TestDashboard() {
           </select>
         </div>
 
-        <div className="hidden overflow-x-auto border-b border-[#1F1F23] sm:block">
+        <div className="hidden overflow-x-auto border-b border-line sm:block">
           <div className="flex min-w-max gap-1">
             {TABS.map((t) => {
               const Icon = t.icon;
@@ -538,8 +539,8 @@ export default function TestDashboard() {
                   className={
                     '-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ' +
                     (active
-                      ? 'border-[#7C3AED] text-[#F4F4F5]'
-                      : 'border-transparent text-[#71717A] hover:text-[#A1A1AA]')
+                      ? 'border-accent text-text'
+                      : 'border-transparent text-dim hover:text-muted')
                   }
                 >
                   <Icon className="h-4 w-4" />
@@ -565,12 +566,12 @@ export default function TestDashboard() {
         {/* ── TAB 6 — Run all ─────────────────────────────────────────── */}
         {tab === 'run-all' && (
           <div className="space-y-4">
-            <label className="flex items-center gap-2 text-sm text-[#A1A1AA]">
+            <label className="flex items-center gap-2 text-sm text-muted">
               <input
                 type="checkbox"
                 checked={includeNightwatch}
                 onChange={(e) => setIncludeNightwatch(e.target.checked)}
-                className="h-4 w-4 accent-[#7C3AED]"
+                className="h-4 w-4 accent-accent"
               />
               Include Nightwatch (expensive ~$0.30)
             </label>
@@ -585,7 +586,7 @@ export default function TestDashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-[#1F1F23] text-xs uppercase tracking-wider text-[#71717A]">
+                    <tr className="border-b border-line text-xs uppercase tracking-wider text-dim">
                       <th className="px-4 py-2.5 font-medium">Agent</th>
                       <th className="px-4 py-2.5 font-medium">Status</th>
                       <th className="px-4 py-2.5 font-medium">Cost</th>
@@ -596,23 +597,23 @@ export default function TestDashboard() {
                     {suite.map((a) => {
                       const s = state(a.id);
                       return (
-                        <tr key={a.id} className="border-b border-[#1F1F23] last:border-0">
-                          <td className="px-4 py-2.5 text-[#F4F4F5]">{a.name}</td>
+                        <tr key={a.id} className="border-b border-line last:border-0">
+                          <td className="px-4 py-2.5 text-text">{a.name}</td>
                           <td className="px-4 py-2.5">
-                            {s.status === 'idle' && <span className="text-xs text-[#52525B]">—</span>}
+                            {s.status === 'idle' && <span className="text-xs text-faint">—</span>}
                             {s.status === 'running' && (
-                              <span className="inline-flex items-center gap-1.5 text-xs text-[#F59E0B]">
-                                <Loader2 className="h-3 w-3 animate-spin" /> running
+                              <span className="inline-flex items-center gap-1.5 text-xs text-warn">
+                                <Pending /> running
                               </span>
                             )}
                             {(s.status === 'pass' || s.status === 'fail') && (
                               <Verdict pass={s.status === 'pass'} />
                             )}
                           </td>
-                          <td className="px-4 py-2.5 tabular-nums text-[#A1A1AA]">
+                          <td className="px-4 py-2.5 tabular-nums text-muted">
                             {s.cost != null ? money(s.cost) : '—'}
                           </td>
-                          <td className="px-4 py-2.5 tabular-nums text-[#71717A]">
+                          <td className="px-4 py-2.5 tabular-nums text-dim">
                             {s.ms != null ? `${s.ms}ms` : '—'}
                           </td>
                         </tr>
@@ -622,21 +623,21 @@ export default function TestDashboard() {
                 </table>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 border-t border-[#1F1F23] px-4 py-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 border-t border-line px-4 py-3 sm:grid-cols-3">
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-[#71717A]">Total cost</p>
-                  <p className="mt-0.5 text-sm font-semibold text-[#F4F4F5]">{money(totalCost)}</p>
+                  <p className="text-xs uppercase tracking-wider text-dim">Total cost</p>
+                  <p className="mt-0.5 text-sm font-semibold text-text">{money(totalCost)}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-[#71717A]">Pass rate</p>
-                  <p className="mt-0.5 text-sm font-semibold text-[#F4F4F5]">
+                  <p className="text-xs uppercase tracking-wider text-dim">Pass rate</p>
+                  <p className="mt-0.5 text-sm font-semibold text-text">
                     {passed}/{done.length || suite.length} passed
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-[#71717A]">Est. monthly</p>
-                  <p className="mt-0.5 text-sm font-semibold text-[#F4F4F5]">{money(monthly)}</p>
-                  <p className="mt-0.5 text-[11px] text-[#52525B]">At default schedules</p>
+                  <p className="text-xs uppercase tracking-wider text-dim">Est. monthly</p>
+                  <p className="mt-0.5 text-sm font-semibold text-text">{money(monthly)}</p>
+                  <p className="mt-0.5 text-[11px] text-faint">At default schedules</p>
                 </div>
               </div>
             </Card>
@@ -650,8 +651,8 @@ export default function TestDashboard() {
             {HUNTER_TESTS.map((t) => (
               <Card key={t.id} className="space-y-3 p-4">
                 <div>
-                  <p className="text-sm font-semibold text-[#F4F4F5]">{t.label}</p>
-                  <p className="mt-0.5 text-sm text-[#71717A]">{t.description}</p>
+                  <p className="text-sm font-semibold text-text">{t.label}</p>
+                  <p className="mt-0.5 text-sm text-dim">{t.description}</p>
                 </div>
                 <RunButton
                   onClick={() => runOne(t.id, t.endpoint)}
@@ -669,14 +670,14 @@ export default function TestDashboard() {
           <div className="space-y-3">
             <Card className="space-y-3 p-4">
               <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-[#71717A]">Industry</span>
+                <span className="text-xs font-medium text-dim">Industry</span>
                 <input className={field} value={marketIndustry} onChange={(e) => setMarketIndustry(e.target.value)} />
               </label>
               <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-[#71717A]">Competitors (comma-separated)</span>
+                <span className="text-xs font-medium text-dim">Competitors (comma-separated)</span>
                 <input className={field} value={marketCompetitors} onChange={(e) => setMarketCompetitors(e.target.value)} />
               </label>
-              <p className="text-xs text-[#52525B]">
+              <p className="text-xs text-faint">
                 The test route sends its own fixed payload, so these show the fixture rather than change it.
               </p>
             </Card>
@@ -695,10 +696,10 @@ export default function TestDashboard() {
             <Warning text="This writes real RAG chunks to Supabase on every run" />
             <Card className="space-y-3 p-4">
               <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-[#71717A]">ICP description</span>
+                <span className="text-xs font-medium text-dim">ICP description</span>
                 <input className={field} value={icp} onChange={(e) => setIcp(e.target.value)} />
               </label>
-              <p className="text-xs text-[#52525B]">
+              <p className="text-xs text-faint">
                 The test route sends its own fixed payload, so this shows the fixture rather than change it.
               </p>
             </Card>
@@ -717,10 +718,10 @@ export default function TestDashboard() {
             <Warning text="This writes trend opportunities to your approvals queue on every run" />
             <Card className="space-y-3 p-4">
               <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-[#71717A]">Industry</span>
+                <span className="text-xs font-medium text-dim">Industry</span>
                 <input className={field} value={trendIndustry} onChange={(e) => setTrendIndustry(e.target.value)} />
               </label>
-              <p className="text-xs text-[#52525B]">
+              <p className="text-xs text-faint">
                 The test route sends its own fixed payload, so this shows the fixture rather than change it.
               </p>
             </Card>

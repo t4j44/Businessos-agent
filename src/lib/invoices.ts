@@ -1,5 +1,7 @@
 import { supabaseAdmin } from './supabase'
 import { sendInvoiceEmail, type SendInvoiceEmailResult } from './resend'
+import { isDate, isUuid, ValidationError } from './validation'
+import { parsePublicUrl } from './safe-fetch'
 
 // Single choke point for logging a new invoice.
 //
@@ -16,7 +18,7 @@ export type CreateInvoiceParams = {
   due_date?: string | null
   stripe_invoice_id?: string | null
   contact_id?: string | null
-  /** Overrides the placeholder payment link in the email. */
+  /** Optional real hosted payment URL. No payment page is invented. */
   payment_url?: string
   /** Escape hatch for backfills/imports that should not email anyone. */
   send_email?: boolean
@@ -42,6 +44,27 @@ export async function createInvoice(
     send_email = true,
   } = params
 
+  if (!isUuid(client_id) || typeof customer_email !== 'string' || customer_email.length > 254
+    || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer_email)) throw new ValidationError('A valid customer email is required.')
+  if (!Number.isSafeInteger(amount_cents) || amount_cents <= 0 || amount_cents > 2147483647) {
+    throw new ValidationError('Amount must be a positive whole number of cents within the supported limit.')
+  }
+  if (due_date != null && !isDate(due_date)) throw new ValidationError('A valid due date is required.')
+  for (const value of [customer_name, stripe_invoice_id]) {
+    if (value != null && (typeof value !== 'string' || value.length > 200)) throw new ValidationError('Invoice name or reference is too long.')
+  }
+  if (payment_url != null) {
+    try { if (parsePublicUrl(payment_url).protocol !== 'https:') throw new Error('HTTPS required') }
+    catch { throw new ValidationError('Payment URL must be a public HTTPS URL.') }
+  }
+  if (contact_id != null) {
+    if (!isUuid(contact_id)) throw new ValidationError('Invalid customer ID.')
+    const { data: contact, error: contactError } = await supabaseAdmin.from('contacts').select('id')
+      .eq('client_id', client_id).eq('id', contact_id).maybeSingle()
+    if (contactError) throw new Error('Customer lookup is unavailable.')
+    if (!contact) throw new ValidationError('Customer not found.', 404)
+  }
+
   const { data: invoice, error } = await supabaseAdmin
     .from('invoices')
     .insert({
@@ -52,7 +75,7 @@ export async function createInvoice(
       due_date: due_date || null,
       stripe_invoice_id: stripe_invoice_id || null,
       contact_id: contact_id || null,
-      status: 'sent',
+      status: 'draft',
       days_overdue: 0,
       // 0 means "no chase step taken yet" — the initial email below is the
       // first touch, not part of the 1-5 overdue ladder, which only starts
@@ -83,6 +106,18 @@ export async function createInvoice(
     invoice_id: invoice.id,
     payment_url,
   })
+
+  if (email.sent && email.email_id) {
+    const { data: updated, error: updateError } = await supabaseAdmin.from('invoices')
+      .update({ status: 'sent' }).eq('client_id', client_id).eq('id', invoice.id).eq('status', 'draft')
+      .select('status').maybeSingle()
+    if (updateError || !updated) {
+      // Do not throw after a confirmed provider acceptance: retrying creation
+      // could send twice. Return the actual saved state and recovery warning.
+      return { invoice, email: { ...email, error: 'Email accepted, but invoice status needs reconciliation. Do not create it again.' } }
+    }
+    invoice.status = updated.status
+  }
 
   return { invoice, email }
 }

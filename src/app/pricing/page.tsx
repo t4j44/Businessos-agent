@@ -66,23 +66,23 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F172A] text-slate-200 py-16 px-4 font-sans">
+    <div className="min-h-screen bg-canvas text-text py-16 px-4 font-sans">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">Simple, transparent pricing</h1>
-          <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+          <p className="text-lg text-muted max-w-2xl mx-auto">
             Choose the perfect AI team for your business. Pilot any plan for just $1.
           </p>
           
           <div className="flex items-center justify-center gap-3 mt-8">
-            <span className={`text-sm font-medium ${!isAnnual ? 'text-white' : 'text-slate-400'}`}>Monthly</span>
+            <span className={`text-sm font-medium ${!isAnnual ? 'text-white' : 'text-muted'}`}>Monthly</span>
             <button 
               onClick={() => setIsAnnual(!isAnnual)}
-              className="relative inline-flex h-6 w-11 items-center rounded-full bg-[#2563EB] transition-colors focus:outline-none"
+              className="relative inline-flex h-6 w-11 items-center rounded-full bg-accent transition-colors focus:outline-none"
             >
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAnnual ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
-            <span className={`text-sm font-medium ${isAnnual ? 'text-white' : 'text-slate-400'}`}>
+            <span className={`text-sm font-medium ${isAnnual ? 'text-white' : 'text-muted'}`}>
               Annual <span className="text-emerald-400 ml-1">(2 months free)</span>
             </span>
           </div>
@@ -95,10 +95,10 @@ export default function PricingPage() {
             return (
               <div 
                 key={tier.name} 
-                className={`bg-slate-900 border rounded-2xl flex flex-col ${tier.isPopular ? 'border-[#2563EB] shadow-lg shadow-blue-900/20 relative' : 'border-slate-800'}`}
+                className={`bg-canvas border rounded-2xl flex flex-col ${tier.isPopular ? 'border-accent shadow-lg shadow-blue-900/20 relative' : 'border-line'}`}
               >
                 {tier.isPopular && (
-                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-[#2563EB] text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-accent text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
                     MOST POPULAR
                   </div>
                 )}
@@ -107,7 +107,7 @@ export default function PricingPage() {
                   <h3 className="text-lg font-semibold text-white mb-2">{tier.name}</h3>
                   <div className="mb-6 flex items-baseline">
                     <span className="text-4xl font-extrabold text-white">${price}</span>
-                    <span className="text-slate-400 ml-2">/{isAnnual ? 'yr' : 'mo'}</span>
+                    <span className="text-muted ml-2">/{isAnnual ? 'yr' : 'mo'}</span>
                   </div>
                   
                   <button
@@ -115,8 +115,8 @@ export default function PricingPage() {
                     disabled={loadingTier === tier.id}
                     className={`w-full py-2.5 px-4 rounded-lg font-semibold transition-colors mb-6 flex justify-center items-center ${
                       tier.isPopular 
-                        ? 'bg-[#2563EB] hover:bg-blue-600 text-white' 
-                        : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
+                        ? 'bg-accent hover:bg-blue-600 text-white'
+                        : 'bg-surface hover:bg-raised text-white border border-line'
                     }`}
                   >
                     {loadingTier === tier.id ? 'Loading...' : 'Start with $1 pilot'}
@@ -128,7 +128,7 @@ export default function PricingPage() {
                         <svg className="w-5 h-5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        <span className="text-sm text-slate-300">{feature}</span>
+                        <span className="text-sm text-muted">{feature}</span>
                       </div>
                     ))}
                   </div>

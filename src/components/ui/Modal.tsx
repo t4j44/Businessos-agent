@@ -50,18 +50,18 @@ export default function Modal({
       />
       <div className={`
         relative w-full ${sizes[size]}
-        bg-[#17171A] border border-[#1F1F23] rounded-lg 
+        bg-raised border border-line rounded-lg
         animate-in fade-in zoom-in-95 duration-200
       `}>
         {(title || showClose) && (
-          <div className="flex items-center justify-between p-6 border-b border-[#1F1F23]">
+          <div className="flex items-center justify-between p-6 border-b border-line">
             {title && (
               <h2 className="text-lg font-semibold text-white">{title}</h2>
             )}
             {showClose && (
               <button
                 onClick={onClose}
-                className="ml-auto text-[#A1A1AA] hover:text-white transition-colors p-1 rounded-lg hover:bg-[#1F1F23]"
+                className="ml-auto text-muted hover:text-white transition-colors p-1 rounded-lg hover:bg-line"
               >
                 <X size={20} />
               </button>

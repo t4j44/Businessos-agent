@@ -162,9 +162,9 @@ export async function runReputation(params: {
     });
 
     if (rating <= 3) {
-      await updateContactScore({ contact_id: contactId, score_delta: -15 });
+      await updateContactScore({ client_id, contact_id: contactId, score_delta: -15 });
     } else if (rating >= 4) {
-      await updateContactScore({ contact_id: contactId, score_delta: 10 });
+      await updateContactScore({ client_id, contact_id: contactId, score_delta: 10 });
     }
   }
 

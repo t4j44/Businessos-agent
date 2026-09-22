@@ -83,7 +83,9 @@ export async function GET(req: Request) {
       integrations: INTEGRATIONS.map((i) => ({
         name: i.name,
         desc: i.desc,
-        connected: !!process.env[i.env],
+        connected: false,
+        configured: Boolean(process.env[i.env]),
+        verification: 'not_checked',
       })),
     });
   } catch (err: any) {

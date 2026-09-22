@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Check, Loader2, Plus, X } from "lucide-react";
+import { Pending } from "@/components/ui/Skeleton";
 
 const LOADING_MESSAGES = [
   "Reading your homepage...",
@@ -77,19 +78,19 @@ export default function BrandReviewPage() {
           <h2 className="text-xl font-semibold mb-6">Processing Steps</h2>
           <ul className="space-y-4 text-sm">
             <li className="flex items-center gap-3">
-              {completedSteps > 0 ? <Check className="w-5 h-5 text-green-500" /> : <Loader2 className="w-5 h-5 animate-spin text-blue-500" />}
+              {completedSteps > 0 ? <Check className="w-5 h-5 text-green-500" /> : <Pending />}
               <span className={completedSteps > 0 ? "text-gray-900" : "text-gray-500 font-medium"}>Website read (12 pages)</span>
             </li>
             <li className="flex items-center gap-3">
-              {completedSteps > 1 ? <Check className="w-5 h-5 text-green-500" /> : (completedSteps === 1 ? <Loader2 className="w-5 h-5 animate-spin text-blue-500" /> : <div className="w-5 h-5 rounded-full border-2 border-gray-200" />)}
+              {completedSteps > 1 ? <Check className="w-5 h-5 text-green-500" /> : (completedSteps === 1 ? <Pending /> : <div className="w-5 h-5 rounded-full border-2 border-gray-200" />)}
               <span className={completedSteps > 1 ? "text-gray-900" : (completedSteps === 1 ? "text-gray-500 font-medium" : "text-gray-400")}>Brand voice identified</span>
             </li>
             <li className="flex items-center gap-3">
-              {completedSteps > 2 ? <Check className="w-5 h-5 text-green-500" /> : (completedSteps === 2 ? <Loader2 className="w-5 h-5 animate-spin text-blue-500" /> : <div className="w-5 h-5 rounded-full border-2 border-gray-200" />)}
+              {completedSteps > 2 ? <Check className="w-5 h-5 text-green-500" /> : (completedSteps === 2 ? <Pending /> : <div className="w-5 h-5 rounded-full border-2 border-gray-200" />)}
               <span className={completedSteps > 2 ? "text-gray-900" : (completedSteps === 2 ? "text-gray-500 font-medium" : "text-gray-400")}>ICP extracted</span>
             </li>
             <li className="flex items-center gap-3">
-               {completedSteps > 3 ? <Check className="w-5 h-5 text-green-500" /> : (completedSteps === 3 ? <Loader2 className="w-5 h-5 animate-spin text-blue-500" /> : <div className="w-5 h-5 rounded-full border-2 border-gray-200" />)}
+               {completedSteps > 3 ? <Check className="w-5 h-5 text-green-500" /> : (completedSteps === 3 ? <Pending /> : <div className="w-5 h-5 rounded-full border-2 border-gray-200" />)}
               <span className={completedSteps > 2 ? "text-blue-600 font-medium" : "text-gray-400"}>{completedSteps > 2 ? "Building email templates..." : "Email templates pending"}</span>
             </li>
             <li className="flex items-center gap-3 text-gray-400">
@@ -106,8 +107,8 @@ export default function BrandReviewPage() {
         {/* Center Screen */}
         <div className="flex-1 flex flex-col items-center justify-center p-8">
           <div className="relative flex items-center justify-center w-32 h-32 mb-8">
-            <svg className="animate-spin w-full h-full text-blue-500" viewBox="0 0 50 50">
-              <circle className="path" cx="25" cy="25" r="20" fill="none" strokeWidth="4" stroke="currentColor" strokeDasharray="90 150" strokeLinecap="round"></circle>
+            <svg className="w-full h-full -rotate-90 text-accent" viewBox="0 0 50 50">
+              <circle className="path" cx="25" cy="25" r="20" fill="none" strokeWidth="4" stroke="currentColor" strokeDasharray={`${(progress / 100) * 125.6} 125.6`} strokeLinecap="round"></circle>
             </svg>
             <div className="absolute text-xl font-semibold text-gray-700">{Math.floor(progress)}%</div>
           </div>

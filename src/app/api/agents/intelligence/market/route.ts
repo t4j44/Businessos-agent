@@ -3,7 +3,7 @@ import { callAI, MODELS, parseJSON } from '@/lib/ai'
 import { readWebsite, normalizeUrl } from '@/lib/scraper'
 import { braveSearch, type BraveResult } from '@/lib/brave'
 import { logAgentRun } from '@/lib/log'
-import { TEST_CLIENT_ID } from '@/lib/client-config'
+import { isUuid } from '@/lib/validation'
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
 
 // Market Intelligence — reads competitor sites (Jina, via lib/scraper) and
@@ -120,7 +120,8 @@ export async function runMarketIntelligence(params: {
     return { status: 503, body: { error: 'OPENROUTER_API_KEY missing' } }
   }
 
-  const client_id = params.client_id || TEST_CLIENT_ID
+  if (!isUuid(params.client_id)) return { status: 400, body: { error: 'A valid client_id is required.' } }
+  const client_id = params.client_id
   const industry = (params.industry || '').trim() || 'general'
   const runType = params.run_type === 'deep' ? 'deep' : 'quick'
 

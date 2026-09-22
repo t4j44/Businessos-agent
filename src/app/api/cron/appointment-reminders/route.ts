@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { logAgentRun } from '@/lib/log';
 import { isTwilioConfigured, sendSMS } from '@/lib/sms';
+import { cronHandler, SkipCounter } from '@/lib/cron';
 import {
   getSchedulerContext,
   sendReminderEmail,
@@ -10,21 +10,29 @@ import {
   type SchedulerContext,
 } from '@/lib/appointments';
 
-// GET /api/cron/appointment-reminders
+// GET /api/cron/appointment-reminders — daily, early US morning.
 //
 // Day-before reminders for confirmed appointments. SMS when Twilio is fully
 // configured and the customer left a number, email otherwise.
 //
+// THE BUG THIS ROUTE IS NAMED AFTER: for weeks every SMS here was refused for
+// missing phone_consent, the email fallback quietly took over, and the cron
+// reported success each night. Nothing in the response said "0 of 40 sent by
+// SMS, 40 skipped: no_consent". Now it does — `skipped` is keyed by reason,
+// and a run that sends nothing is a different body from a run with nothing
+// to send.
+//
 // TIMEZONE: "tomorrow" is computed in UTC. Clients carry a `timezone` column
 // (migration 003) that this does not yet consult, so a client far from UTC can
 // see reminders land a day early or late relative to their local calendar.
-export async function GET(req: Request) {
-  const auth = req.headers.get('authorization');
-  if (auth !== 'Bearer ' + process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
 
-  try {
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+export const GET = cronHandler({
+  name: 'appointment-reminders',
+  agentType: 'scheduler',
+  async run() {
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
     // confirmed_date is what the confirm step pins down; fall back to
@@ -38,25 +46,19 @@ export async function GET(req: Request) {
       .eq('reminder_sent', false)
       .or(`confirmed_date.eq.${tomorrow},and(confirmed_date.is.null,requested_date.eq.${tomorrow})`);
 
-    if (error) {
-      console.error('[cron/appointment-reminders] query failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    if (error) throw new Error(`appointments query failed: ${error.message}`);
 
-    const due = rows || [];
+    const due = rows ?? [];
     const twilioReady = isTwilioConfigured();
 
     // One context lookup per client rather than per appointment.
     const contexts = new Map<string, SchedulerContext>();
     const results: any[] = [];
+    const skipped = new SkipCounter();
 
-    // A silent skip is what let the missing clientId go unnoticed for a whole
-    // release. These are returned in the response body so a run that sends
-    // nothing is visibly different from one with nothing to send.
     let smsSent = 0;
-    let smsSkippedNoConsent = 0;
-    let smsSkippedSuppressed = 0;
     let emailsSent = 0;
+    let errors = 0;
 
     for (const appt of due) {
       try {
@@ -72,6 +74,9 @@ export async function GET(req: Request) {
 
         let channel: 'sms' | 'email' | 'none' = 'none';
         let outcome: any = { sent: false, skipped: 'No phone number or email on the appointment.' };
+        // Why the SMS did not go, when it did not. Recorded even if email
+        // then succeeds — the point is to see the SMS path failing.
+        let smsReason: string | null = null;
 
         if (twilioReady && appt.customer_phone) {
           channel = 'sms';
@@ -91,25 +96,12 @@ export async function GET(req: Request) {
           if (outcome.sent) {
             smsSent++;
           } else {
-            const why = String(outcome.skipped || outcome.error || 'unknown');
-            if (why.includes('consent')) {
-              smsSkippedNoConsent++;
-              console.warn(
-                '[cron/appointment-reminders] SMS skipped, no phone_consent on record —',
-                'appointment', appt.id, '-', why,
-              );
-            } else if (why.includes('suppressed')) {
-              smsSkippedSuppressed++;
-              console.warn(
-                '[cron/appointment-reminders] SMS skipped, number suppressed —',
-                'appointment', appt.id,
-              );
-            } else {
-              console.warn(
-                '[cron/appointment-reminders] SMS not sent for appointment',
-                appt.id, '-', why,
-              );
-            }
+            const why = String(outcome.skipped || outcome.error || 'unknown').toLowerCase();
+            smsReason = why.includes('consent') ? 'sms_no_consent'
+              : why.includes('suppress') ? 'sms_suppressed'
+              : 'sms_failed';
+            skipped.add(smsReason);
+            console.warn(`[cron/appointment-reminders] ${smsReason} for appointment ${appt.id} — ${why}`);
           }
 
           // A failed or refused SMS should not cost the customer their
@@ -124,9 +116,11 @@ export async function GET(req: Request) {
               serviceType: appt.service_type,
             });
             if (outcome.sent) emailsSent++;
+            else skipped.add('email_failed');
           }
         } else if (appt.customer_email) {
           channel = 'email';
+          if (appt.customer_phone && !twilioReady) skipped.add('sms_twilio_not_configured');
           outcome = await sendReminderEmail({
             ctx,
             customerName: appt.customer_name,
@@ -135,15 +129,23 @@ export async function GET(req: Request) {
             serviceType: appt.service_type,
           });
           if (outcome.sent) emailsSent++;
+          else skipped.add('email_failed');
+        } else {
+          skipped.add('no_contact_method');
         }
 
         // Flagged only on a real send, so a transient outage leaves the
         // appointment eligible for tomorrow's run instead of silently skipped.
         if (outcome.sent) {
-          await supabaseAdmin
+          const { error: flagError } = await supabaseAdmin
             .from('appointments')
             .update({ reminder_sent: true, updated_at: new Date().toISOString() })
             .eq('id', appt.id);
+          if (flagError) {
+            // The reminder went out; the flag did not. Tomorrow's run will
+            // send it again unless this is seen.
+            console.error(`[cron/appointment-reminders] reminder_sent flag failed for ${appt.id}:`, flagError.message);
+          }
         }
 
         results.push({
@@ -151,9 +153,11 @@ export async function GET(req: Request) {
           client_id: appt.client_id,
           channel,
           sent: Boolean(outcome.sent),
+          sms_reason: smsReason,
           detail: outcome.error || outcome.skipped || undefined,
         });
       } catch (e: any) {
+        errors++;
         console.error(`[cron/appointment-reminders] ${appt.id} failed:`, e?.message || e);
         results.push({
           appointment_id: appt.id,
@@ -165,7 +169,8 @@ export async function GET(req: Request) {
       }
     }
 
-    // One log line per client that had reminders due.
+    // One per-client log row, so the reminders show in that client's activity
+    // feed. The cron-level row (client_id null) is written by cronHandler.
     const byClient = new Map<string, any[]>();
     for (const r of results) {
       if (!byClient.has(r.client_id)) byClient.set(r.client_id, []);
@@ -189,22 +194,18 @@ export async function GET(req: Request) {
       ),
     );
 
-    return NextResponse.json({
-      date: tomorrow,
-      due: due.length,
-      sent: results.filter((r) => r.sent).length,
-      // Per-channel outcome, so a run that sends nothing is distinguishable
-      // from a run with nothing to send.
-      sms_sent: smsSent,
-      sms_skipped_no_consent: smsSkippedNoConsent,
-      sms_skipped_suppressed: smsSkippedSuppressed,
-      emails_sent: emailsSent,
-      twilio_configured: twilioReady,
-      results,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (err: any) {
-    console.error('[cron/appointment-reminders] GET failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
-  }
-}
+    return {
+      scanned: due.length,
+      acted: smsSent + emailsSent,
+      skipped: skipped.toJSON(),
+      errors,
+      detail: {
+        date: tomorrow,
+        sms_sent: smsSent,
+        emails_sent: emailsSent,
+        twilio_configured: twilioReady,
+        results,
+      },
+    };
+  },
+});

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createInvoice } from '@/lib/invoices';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
+import { readJsonBody, ValidationError } from '@/lib/validation'
 
 // POST /api/invoices — log a new invoice.
 //
@@ -18,7 +19,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = await req.json();
+    const body = await readJsonBody(req);
+    if (body.send_email !== undefined && typeof body.send_email !== 'boolean') throw new ValidationError('send_email must be true or false.');
 
     const client_id = clientId;
     const customer_email = body.customer_email;
@@ -55,6 +57,7 @@ export async function POST(req: Request) {
     // so the caller does not retry the insert and duplicate the row.
     return NextResponse.json({ created: true, invoice, email }, { status: 201 });
   } catch (err: any) {
+    if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error('[invoices] POST failed:', err);
     return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
   }

@@ -1,67 +1,29 @@
-import { createRouteClient } from '@/lib/supabase-route';
 import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { isUuid, readJsonBody, ValidationError } from '@/lib/validation';
+import { logAgentRun } from '@/lib/log';
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  let clientId: string;
   try {
-    ({ clientId } = await requireSession());
-  } catch (err) {
-    return authErrorResponse(err) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  try {
+    const { clientId, userId } = await requireSession();
     const { id } = await params;
-    const supabase = await createRouteClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { action } = await req.json();
-
-    if (!['approved', 'rejected'].includes(action)) {
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-    }
-
-    // Get item
-    const { data: item } = await supabase
-      .from('approvals_queue')
-      .select('*')
-      .eq('id', id)
-      .eq('client_id', clientId)
-      .single();
-
-    // Use mock data locally if DB misses for demo
-    const actionType = item?.action_type || 'unknown';
-    const payload = item?.payload_json || {};
-
-    // Update status
-    await supabase
-      .from('approvals_queue')
-      .update({ status: action })
-      .eq('id', id)
-      .eq('client_id', clientId);
-
-    // Trigger downstream n8n webhook
-    const n8nWebhookBase = process.env.N8N_WEBHOOK_BASE_URL;
-    if (n8nWebhookBase) {
-      // Fire and forget
-      fetch(`${n8nWebhookBase}/approvals-resolved`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          approval_id: id,
-          action_type: actionType,
-          status: action,
-          payload_json: payload
-        })
-      }).catch(err => console.error('n8n webhook failed:', err));
-    }
-
-    return NextResponse.json({ success: true, status: action });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const { action } = await readJsonBody(req);
+    if (!isUuid(id) || !['approved', 'rejected'].includes(action)) throw new ValidationError('Invalid approval decision.');
+    const { data, error } = await supabaseAdmin.rpc('resolve_approval', {
+      p_client_id: clientId, p_id: id, p_user_id: userId, p_action: action,
+    });
+    if (error || !data) return NextResponse.json({ error: 'Decision could not be saved.' }, { status: 503 });
+    if (data.outcome === 'not_found') return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (['expired', 'conflict'].includes(data.outcome)) return NextResponse.json({ error: 'This approval expired or already has a different decision.' }, { status: 409 });
+    if (data.outcome === 'resolved') await logAgentRun({ client_id: clientId, agent_type: 'approval', status: 'completed',
+      output_summary: `Owner ${action} an action`, metadata: { approval_id: id, user_id: userId, execution_status: data.execution_status } });
+    // Approval records intent. Provider execution requires a separate receipt.
+    return NextResponse.json({ success: true, status: data.status, execution_status: data.execution_status, executed: false });
+  } catch (error) {
+    const auth = authErrorResponse(error);
+    if (auth) return auth;
+    if (error instanceof ValidationError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json({ error: 'Decision could not be saved.' }, { status: 503 });
   }
 }

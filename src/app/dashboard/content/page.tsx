@@ -7,6 +7,8 @@ import { Spinner, ErrorMessage, SuccessMessage, postJSON } from '@/components/da
 import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { normalizeStatus, relativeTime, AGENTS } from '@/lib/agent-catalog';
 import { StatusPill } from '@/components/dashboard/StatusPill';
+import { MetricCard } from '@/components/ui/MetricCard';
+import { SkeletonCard, SkeletonTable } from '@/components/ui/Skeleton';
 
 // What a Generate Content click asks the creative agent for.
 // NOTE: the route's parameters are `platform` (single value or list) and
@@ -19,7 +21,7 @@ const GENERATE_DAYS = 5;
 const STATUS_STYLE: Record<string, string> = {
   scheduled: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
   published: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
-  draft:     'bg-[#52525B]/15 text-[#A1A1AA] border-[#2A2A30]/20',
+  draft:     'bg-faint/15 text-muted border-line-strong/20',
 };
 
 interface Metrics {
@@ -200,14 +202,14 @@ export default function ContentPage() {
 
   const header = (
     <div className="flex items-center justify-between">
-      <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-[#F4F4F5] flex items-center gap-2">
-        <Sparkles className="w-6 h-6 text-[#7C3AED]" />
+      <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-text flex items-center gap-2">
+        <Sparkles className="w-6 h-6 text-accent" />
         Creative Studio
       </h1>
       <button
         onClick={handleGenerate}
         disabled={generating}
-        className="flex items-center gap-2 px-4 py-2 bg-[#7C3AED] hover:bg-[#6D28D9] disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors"
+        className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors"
       >
         {generating ? <Spinner /> : <Sparkles className="w-4 h-4" />}
         {generating ? 'Generating…' : 'Generate Content'}
@@ -219,19 +221,17 @@ export default function ContentPage() {
     return (
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-24 rounded-xl border border-[#1F1F23]/50 bg-[#111113] animate-pulse" />
-          ))}
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} rows={1} />)}
         </div>
-        <div className="h-96 rounded-xl border border-[#1F1F23]/50 bg-[#111113] animate-pulse" />
+        <SkeletonTable rows={7} cols={4} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6 text-[#F4F4F5]">
-        <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-6">
+      <div className="p-6 text-text">
+        <div className="bg-surface rounded-xl border border-line/50 p-6">
           <ErrorMessage message={"Couldn't load content — " + error} />
         </div>
       </div>
@@ -241,20 +241,20 @@ export default function ContentPage() {
   // ── Nothing generated yet ────────────────────────────────────────────────
   if (posts.length === 0) {
     return (
-      <div className="p-6 space-y-6 text-[#F4F4F5]">
+      <div className="p-6 space-y-6 text-text">
         {header}
         <ErrorMessage message={generateError} />
       <SuccessMessage message={generateSuccess} />
-        <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50">
+        <div className="bg-surface rounded-xl border border-line/50">
           <div className="flex flex-col items-center gap-4 px-6 py-20 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#7C3AED]/15">
-              <Sparkles className="h-7 w-7 text-[#7C3AED]" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent/15">
+              <Sparkles className="h-7 w-7 text-accent" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">
                 No content yet. Your creative agent will generate posts.
               </h2>
-              <p className="mx-auto mt-2 max-w-md text-sm text-[#71717A]">
+              <p className="mx-auto mt-2 max-w-md text-sm text-dim">
                 Drafts, scheduled posts, and their performance will all appear here
                 once the agent starts writing.
               </p>
@@ -268,59 +268,45 @@ export default function ContentPage() {
   const publishedWithMetrics = posts.filter((p) => p.status === 'published' && p.metrics);
 
   return (
-    <div className="p-6 space-y-6 text-[#F4F4F5]">
+    <div className="p-6 space-y-6 text-text">
       {header}
       <ErrorMessage message={generateError} />
       <SuccessMessage message={generateSuccess} />
 
       {/* Analytics strip */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              label: 'Posts Published',
-              value: stats.posts_published.toLocaleString(),
-              note: `${stats.published_this_month} this month`,
-              hasData: stats.posts_published > 0,
-            },
-            {
-              label: 'Scheduled',
-              value: stats.scheduled.toLocaleString(),
-              note: `${stats.drafts} draft${stats.drafts === 1 ? '' : 's'} waiting`,
-              hasData: stats.scheduled > 0 || stats.drafts > 0,
-            },
-            {
-              label: 'Total Impressions',
-              value: stats.total_impressions?.toLocaleString() ?? '',
-              note: stats.total_impressions === null ? 'No analytics synced yet' : 'Across published posts',
-              hasData: stats.total_impressions !== null,
-            },
-            {
-              label: 'Avg Engagement',
-              value: stats.avg_engagement_rate !== null ? `${stats.avg_engagement_rate}%` : '',
-              note: stats.avg_engagement_rate === null ? 'No analytics synced yet' : 'Likes + comments / views',
-              hasData: stats.avg_engagement_rate !== null,
-            },
-          ].map((s) => (
-            <div key={s.label} className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-4">
-              <p className="text-[#A1A1AA] text-xs font-medium uppercase tracking-wider mb-1">{s.label}</p>
-              <p className={`text-2xl font-bold ${s.hasData ? 'text-white' : 'text-[#52525B]'}`}>
-                {s.hasData ? s.value : '—'}
-              </p>
-              <p className="text-[#71717A] text-xs mt-1">{s.note}</p>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <MetricCard
+            label="Posts Published"
+            value={stats.posts_published > 0 ? stats.posts_published : '—'}
+            rows={[{ label: 'This month', value: stats.published_this_month }]}
+          />
+          <MetricCard
+            label="Scheduled"
+            value={(stats.scheduled > 0 || stats.drafts > 0) ? stats.scheduled : '—'}
+            rows={[{ label: 'Drafts', value: stats.drafts }]}
+          />
+          <MetricCard
+            label="Total Impressions"
+            value={stats.total_impressions !== null ? stats.total_impressions : '—'}
+            rows={[{ label: 'Scope', value: 'Published' }]}
+          />
+          <MetricCard
+            label="Avg Engagement"
+            value={stats.avg_engagement_rate !== null ? `${stats.avg_engagement_rate}%` : '—'}
+            rows={[{ label: 'Formula', value: 'Engage / views' }]}
+          />
         </div>
       )}
 
       {/* Trend Radar queues urgent drafts for approval. */}
       {pendingDraft && (
-        <div className="flex flex-col gap-3 rounded-lg border border-[#7C3AED]/30 bg-[#7C3AED]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg border border-accent/30 bg-accent/10 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#7C3AED]">
+            <p className="text-sm font-semibold text-accent">
               Trend opportunity queued for approval
             </p>
-            <p className="mt-0.5 text-sm text-[#A1A1AA]">
+            <p className="mt-0.5 text-sm text-muted">
               {pendingDraft.payload_json?.description
                 || pendingDraft.payload_json?.suggested_hook
                 || pendingDraft.payload_json?.topic
@@ -330,7 +316,7 @@ export default function ContentPage() {
           <button
             onClick={approveDraft}
             disabled={approving}
-            className="inline-flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#7C3AED] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex flex-shrink-0 items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {approving ? <Spinner /> : <CheckCircle2 className="h-4 w-4" />}
             {approving ? 'Approving…' : 'Approve'}
@@ -341,13 +327,13 @@ export default function ContentPage() {
       {/* Agent activity, newest week first. */}
       {agentRuns.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-2xl font-semibold leading-8 tracking-tight text-[#F4F4F5]">
+          <h2 className="text-2xl font-semibold leading-8 tracking-tight text-text">
             Agent activity
           </h2>
           <div className="space-y-5">
             {weekKeys.map((week) => (
               <div key={week} className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wider text-[#71717A]">
+                <p className="text-xs font-medium uppercase tracking-wider text-dim">
                   Week of {new Date(week + 'T00:00:00').toLocaleDateString('en-US', {
                     month: 'long', day: 'numeric',
                   })}
@@ -355,22 +341,22 @@ export default function ContentPage() {
                 {runsByWeek[week].map((run: any) => (
                   <div
                     key={run.id}
-                    className="rounded-lg border border-[#1F1F23] bg-[#111113] p-4 transition-colors hover:border-[#2A2A30]"
+                    className="rounded-lg border border-line bg-surface p-4 transition-colors hover:border-line-strong"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-[#F4F4F5]">
+                        <span className="text-sm font-medium text-text">
                           {agentLabel(run.agent_type)}
                         </span>
                         <StatusPill status={normalizeStatus(run.status)} label={run.status ?? undefined} />
                       </div>
-                      <div className="flex flex-shrink-0 items-center gap-3 text-xs text-[#71717A]">
+                      <div className="flex flex-shrink-0 items-center gap-3 text-xs text-dim">
                         <span className="tabular-nums">{money(run.cost_usd)}</span>
                         <span>{relativeTime(run.created_at)}</span>
                       </div>
                     </div>
                     {run.output_summary && (
-                      <p className="mt-1.5 text-sm leading-5 text-[#71717A]">
+                      <p className="mt-1.5 text-sm leading-5 text-dim">
                         {String(run.output_summary).slice(0, 150)}
                         {String(run.output_summary).length > 150 ? '…' : ''}
                       </p>
@@ -384,13 +370,13 @@ export default function ContentPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-[#1F1F23]/50">
+      <div className="flex gap-1 border-b border-line/50">
         {(['queue', 'analytics'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setActiveTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize ${
-              activeTab === t ? 'border-[#7C3AED] text-[#7C3AED]' : 'border-transparent text-[#A1A1AA] hover:text-[#F4F4F5]'
+              activeTab === t ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-text'
             }`}
           >
             {t === 'queue' ? 'Content Queue' : 'Performance'}
@@ -408,7 +394,7 @@ export default function ContentPage() {
                 <PlatformIcon platform={platformKey} className="h-3.5 w-3.5" />
                 {platformLabel(platformKey)}
               </span>
-              <span className="text-xs text-[#71717A]">
+              <span className="text-xs text-dim">
                 {grouped[platformKey].length} post{grouped[platformKey].length === 1 ? '' : 's'}
               </span>
             </div>
@@ -417,7 +403,7 @@ export default function ContentPage() {
             return (
               <div
                 key={post.id}
-                className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-5 space-y-3"
+                className="bg-surface rounded-xl border border-line/50 p-5 space-y-3"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -430,7 +416,7 @@ export default function ContentPage() {
                     </span>
                   </div>
                   {when && (
-                    <div className="flex items-center gap-1 text-xs text-[#71717A] flex-shrink-0">
+                    <div className="flex items-center gap-1 text-xs text-dim flex-shrink-0">
                       <Calendar className="w-3.5 h-3.5" />
                       {when}
                     </div>
@@ -438,27 +424,27 @@ export default function ContentPage() {
                 </div>
 
                 {post.hook && <p className="text-white text-sm font-medium">{post.hook}</p>}
-                <p className="text-[#A1A1AA] text-sm leading-relaxed">{post.content}</p>
-                {post.cta && <p className="text-[#7C3AED] text-xs">{post.cta}</p>}
+                <p className="text-muted text-sm leading-relaxed">{post.content}</p>
+                {post.cta && <p className="text-accent text-xs">{post.cta}</p>}
 
                 {post.metrics ? (
-                  <div className="flex items-center gap-5 pt-1 text-xs text-[#71717A] border-t border-[#1F1F23]/40">
+                  <div className="flex items-center gap-5 pt-1 text-xs text-dim border-t border-line/40">
                     <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" />{post.metrics.views?.toLocaleString() ?? '—'}</span>
                     <span className="flex items-center gap-1"><Heart className="w-3.5 h-3.5" />{post.metrics.likes ?? '—'}</span>
                     <span className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" />{post.metrics.comments ?? '—'}</span>
                   </div>
                 ) : post.status === 'draft' ? (
-                  <div className="flex gap-2 pt-1 border-t border-[#1F1F23]/40">
+                  <div className="flex gap-2 pt-1 border-t border-line/40">
                     <button
                       onClick={() => handleApprove(post.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7C3AED]/20 hover:bg-[#6D28D9]/30 text-[#7C3AED] border border-[#7C3AED]/20 rounded-lg text-xs font-medium transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-accent/20 hover:bg-accent-hover/30 text-accent border border-accent/20 rounded-lg text-xs font-medium transition-colors"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       Approve &amp; Schedule
                     </button>
                   </div>
                 ) : post.status === 'published' ? (
-                  <p className="pt-1 border-t border-[#1F1F23]/40 text-xs text-[#52525B]">
+                  <p className="pt-1 border-t border-line/40 text-xs text-faint">
                     No analytics synced for this post yet.
                   </p>
                 ) : null}
@@ -472,10 +458,10 @@ export default function ContentPage() {
 
       {/* Performance tab */}
       {activeTab === 'analytics' && (
-        <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-6">
+        <div className="bg-surface rounded-xl border border-line/50 p-6">
           <h2 className="text-white font-semibold text-sm mb-4">Top Performing Posts</h2>
           {publishedWithMetrics.length === 0 ? (
-            <p className="text-sm text-[#71717A] py-8 text-center">
+            <p className="text-sm text-dim py-8 text-center">
               No performance data yet — it appears once published posts report back.
             </p>
           ) : (
@@ -484,14 +470,14 @@ export default function ContentPage() {
                 .slice()
                 .sort((a, b) => (b.metrics?.views ?? 0) - (a.metrics?.views ?? 0))
                 .map((p, i) => (
-                  <div key={p.id} className="flex items-center gap-4 py-3 border-b border-[#1F1F23]/40 last:border-0">
-                    <span className="text-[#52525B] text-xs w-4">{i + 1}</span>
+                  <div key={p.id} className="flex items-center gap-4 py-3 border-b border-line/40 last:border-0">
+                    <span className="text-faint text-xs w-4">{i + 1}</span>
                     <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded border ${platformClass(p.platform)}`}>
                       <PlatformIcon platform={p.platform} className="h-3 w-3" />
                       {platformLabel(p.platform)}
                     </span>
-                    <p className="flex-1 text-sm text-[#A1A1AA] line-clamp-1">{p.content}</p>
-                    <div className="flex items-center gap-4 text-xs text-[#71717A] flex-shrink-0">
+                    <p className="flex-1 text-sm text-muted line-clamp-1">{p.content}</p>
+                    <div className="flex items-center gap-4 text-xs text-dim flex-shrink-0">
                       <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" />{p.metrics?.views?.toLocaleString() ?? '—'}</span>
                       <span className="flex items-center gap-1"><Heart className="w-3.5 h-3.5" />{p.metrics?.likes ?? '—'}</span>
                     </div>

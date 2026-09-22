@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, FormEvent } from 'react';
-import { Search, Loader2, ArrowRight, Star, CheckCircle2 } from 'lucide-react';
+import { Search, ArrowRight, Star, CheckCircle2 } from 'lucide-react';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { ErrorMessage } from '@/components/dashboard/AgentState';
 import { Attribution } from '@/components/Attribution';
+import { MetricCard } from '@/components/ui/MetricCard';
+import { Pending, SkeletonCard, SkeletonTable } from '@/components/ui/Skeleton';
 
 // Hunter — the lead pipeline. Search discovers local businesses, enrichment
 // finds a contact and scores ICP fit, then Hunter Generate writes the outbound.
@@ -35,28 +37,15 @@ type Stats = {
 };
 
 const STATUS_PILL: Record<string, string> = {
-  new: 'border-[#2A2A30] bg-[#52525B]/10 text-[#A1A1AA]',
-  enriched: 'border-[#3B82F6]/25 bg-[#3B82F6]/10 text-[#60A5FA]',
-  emailed: 'border-[#10B981]/25 bg-[#10B981]/10 text-[#10B981]',
+  new: 'border-line-strong bg-faint/10 text-muted',
+  enriched: 'border-accent/25 bg-accent/10 text-accent-bright',
+  emailed: 'border-good/25 bg-good/10 text-good',
 };
 
 function icpColor(score: number) {
-  if (score >= 70) return 'text-green-400';
-  if (score >= 40) return 'text-yellow-400';
-  return 'text-red-400';
-}
-
-function StatCard({ label, value, loading }: { label: string; value: string | number; loading: boolean }) {
-  return (
-    <div className="rounded-lg border border-[#1F1F23] bg-[#111113] p-4">
-      <p className="text-xs font-medium uppercase tracking-wider text-[#71717A]">{label}</p>
-      {loading ? (
-        <div className="mt-2 h-7 w-16 animate-pulse rounded bg-[#17171A]" />
-      ) : (
-        <p className="mt-2 text-2xl font-semibold tracking-tight text-[#FAFAFA]">{value}</p>
-      )}
-    </div>
-  );
+  if (score >= 70) return 'text-good';
+  if (score >= 40) return 'text-warn';
+  return 'text-crit';
 }
 
 export default function HunterPage() {
@@ -175,7 +164,7 @@ export default function HunterPage() {
   };
 
   return (
-    <div className="min-h-screen space-y-6 bg-[#0A0A0B] p-6">
+    <div className="min-h-screen space-y-6 bg-canvas p-6">
       <PageHeader
         title="Hunter"
         subtitle="Find local businesses, enrich them, and write the outbound."
@@ -184,63 +173,67 @@ export default function HunterPage() {
       {/* ── Section A — prospect search ─────────────────────────────────── */}
       <form onSubmit={prospect} className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#52525B]" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="e.g. dentists in Chicago IL"
             aria-label="Industry and location"
-            className="w-full rounded-lg border border-[#1F1F23] bg-[#111113] py-2.5 pl-9 pr-3 text-sm text-[#FAFAFA] placeholder:text-[#52525B] focus:border-[#7C3AED]/50 focus:outline-none"
+            className="w-full rounded-lg border border-line bg-surface py-2.5 pl-9 pr-3 text-sm text-text placeholder:text-faint focus:border-accent/50 focus:outline-none"
           />
         </div>
         <button
           type="submit"
           disabled={prospecting || !searchQuery.trim()}
-          className="inline-flex flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-[#7C3AED] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {prospecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          {prospecting ? <Pending /> : <Search className="h-4 w-4" />}
           {prospecting ? 'Searching…' : 'Find Leads'}
         </button>
       </form>
 
       <ErrorMessage message={error} />
       {toast && (
-        <div className="flex items-center gap-2 rounded-lg border border-[#10B981]/20 bg-[#10B981]/10 px-3 py-2 text-sm text-[#10B981]">
+        <div className="flex items-center gap-2 rounded-lg border border-good/20 bg-good/10 px-3 py-2 text-sm text-good">
           <CheckCircle2 className="h-4 w-4" /> {toast}
         </div>
       )}
       {notice && (
-        <div className="rounded-lg border border-[#F59E0B]/25 bg-[#F59E0B]/10 px-3 py-2 text-sm text-[#F59E0B]">
+        <div className="rounded-lg border border-warn/25 bg-warn/10 px-3 py-2 text-sm text-warn">
           {notice}
         </div>
       )}
       {query && !prospecting && (
-        <p className="text-xs text-[#71717A]">Showing results for &ldquo;{query}&rdquo;</p>
+        <p className="text-xs text-dim">Showing results for &ldquo;{query}&rdquo;</p>
       )}
 
       {/* ── Section B — stats ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <StatCard label="Total Leads" value={stats?.total ?? 0} loading={loading} />
-        <StatCard label="New" value={stats?.new ?? 0} loading={loading} />
-        <StatCard label="Enriched" value={stats?.enriched ?? 0} loading={loading} />
-        <StatCard label="Avg ICP Score" value={stats?.avg_icp_score ?? 0} loading={loading} />
+        {loading ? (
+          <>
+            <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
+          </>
+        ) : (
+          <>
+            <MetricCard label="Total Leads" value={stats?.total ?? 0} />
+            <MetricCard label="New" value={stats?.new ?? 0} />
+            <MetricCard label="Enriched" value={stats?.enriched ?? 0} />
+            <MetricCard label="Avg ICP Score" value={stats?.avg_icp_score ?? 0} />
+          </>
+        )}
       </div>
 
       {/* ── Section C — lead table ──────────────────────────────────────── */}
-      <div className="rounded-lg border border-[#1F1F23] bg-[#111113]">
+      <div className="rounded-lg bg-surface/60">
         {loading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-12 animate-pulse rounded-lg bg-[#17171A]" />
-            ))}
-          </div>
+          <SkeletonTable rows={5} cols={7} className="border-0 bg-transparent" />
         ) : leads.length === 0 ? (
           <EmptyState message="No leads yet. Enter a search above to find local businesses in your target market." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-[#1F1F23] text-xs uppercase tracking-wider text-[#71717A]">
+                <tr className="border-b border-line text-xs uppercase tracking-wider text-dim">
                   <th className="px-4 py-2.5 font-medium">Name</th>
                   <th className="px-4 py-2.5 font-medium">Category</th>
                   <th className="px-4 py-2.5 font-medium">City</th>
@@ -257,29 +250,29 @@ export default function HunterPage() {
                   const showDash = status === 'new' || score == null;
 
                   return (
-                    <tr key={lead.id} className="border-b border-[#1F1F23] last:border-0">
+                    <tr key={lead.id} className="border-b border-line last:border-0">
                       <td className="px-4 py-2.5">
-                        <span className="font-medium text-[#FAFAFA]">{lead.name ?? 'Unknown'}</span>
+                        <span className="font-medium text-text">{lead.name ?? 'Unknown'}</span>
                         {lead.email_found && (
-                          <span className="mt-0.5 block text-xs text-[#71717A]">{lead.email_found}</span>
+                          <span className="mt-0.5 block text-xs text-dim">{lead.email_found}</span>
                         )}
                         {lead.phone_consent !== true && (
                           <span
                             title="No phone consent on record — calls and SMS are disabled for this lead (TCPA)."
-                            className="mt-1 inline-block rounded-full border border-[#2A2A30] bg-[#52525B]/10 px-1.5 py-px text-[10px] font-medium text-[#71717A]"
+                            className="mt-1 inline-block rounded-full border border-line-strong bg-faint/10 px-1.5 py-px text-[10px] font-medium text-dim"
                           >
                             no consent
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-[#A1A1AA]">{lead.category ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-[#A1A1AA]">{lead.city ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-[#A1A1AA]">
+                      <td className="px-4 py-2.5 text-muted">{lead.category ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-muted">{lead.city ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-muted">
                         {lead.rating != null ? (
                           <span className="inline-flex items-center gap-1">
-                            <Star className="h-3 w-3 fill-[#F59E0B] text-[#F59E0B]" />
+                            <Star className="h-3 w-3 fill-warn text-warn" />
                             {lead.rating}
-                            <span className="text-xs text-[#52525B]">({lead.review_count ?? 0})</span>
+                            <span className="text-xs text-faint">({lead.review_count ?? 0})</span>
                           </span>
                         ) : '—'}
                       </td>
@@ -293,7 +286,7 @@ export default function HunterPage() {
                       </td>
                       <td className="px-4 py-2.5">
                         {showDash ? (
-                          <span className="text-[#52525B]">—</span>
+                          <span className="text-faint">—</span>
                         ) : (
                           <span className={'font-semibold tabular-nums ' + icpColor(score!)}>{score}</span>
                         )}
@@ -303,10 +296,10 @@ export default function HunterPage() {
                           <button
                             onClick={() => enrich(lead.id)}
                             disabled={enrichingId === lead.id}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-[#7C3AED]/40 px-2.5 py-1.5 text-xs font-medium text-[#A78BFA] transition-colors hover:bg-[#7C3AED]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 px-2.5 py-1.5 text-xs font-medium text-accent-bright transition-colors hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {enrichingId === lead.id
-                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              ? <Pending />
                               : <ArrowRight className="h-3 w-3" />}
                             {enrichingId === lead.id ? 'Enriching…' : 'Enrich'}
                           </button>
@@ -316,10 +309,10 @@ export default function HunterPage() {
                           <button
                             onClick={() => writeEmails(lead)}
                             disabled={generatingId === lead.id}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#7C3AED] px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#6D28D9] disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {generatingId === lead.id
-                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              ? <Pending />
                               : <ArrowRight className="h-3 w-3" />}
                             {generatingId === lead.id ? 'Writing…' : 'Write Emails'}
                           </button>
@@ -328,7 +321,7 @@ export default function HunterPage() {
                         {status === 'emailed' && (
                           <button
                             disabled
-                            className="rounded-lg border border-[#1F1F23] px-2.5 py-1.5 text-xs font-medium text-[#52525B]"
+                            className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-faint"
                           >
                             View
                           </button>

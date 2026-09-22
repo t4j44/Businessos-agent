@@ -8,6 +8,7 @@ import {
   postalAddress,
 } from './compliance'
 import { logAgentRun } from './log'
+import { parsePublicUrl } from './safe-fetch'
 
 // Resend is imported lazily inside the send path so that merely importing this
 // module (which several routes do) never pulls the SDK into a cold start that
@@ -138,7 +139,8 @@ export async function sendBrandedEmail(params: {
       console.error('[sendBrandedEmail] Resend rejected the send:', error)
       return { sent: false, error: error.message || String(error) }
     }
-    return { sent: true, email_id: data?.id }
+    if (!data?.id) return { sent: false, error: 'Email provider returned no receipt.' }
+    return { sent: true, email_id: data.id }
   } catch (err: any) {
     console.error('[sendBrandedEmail] send failed:', err)
     return { sent: false, error: err?.message || String(err) }
@@ -153,9 +155,9 @@ export type SendInvoiceEmailParams = {
   due_date?: string | null
   /** Human-facing invoice reference — falls back to a short form of the row id. */
   invoice_number: string
-  /** Row id, used for the payment link and for the agent_runs record. */
+  /** Row id for the agent_runs record. */
   invoice_id?: string
-  /** Overrides the generated placeholder link once real payment pages exist. */
+  /** A real hosted payment URL, if one exists. */
   payment_url?: string
 }
 
@@ -203,16 +205,17 @@ export async function sendInvoiceEmail(
     const due = formatDueDate(due_date)
     const greetingName = (customer_name || '').trim() || 'there'
 
-    // Placeholder until real payment pages exist — a caller that has a Stripe
-    // hosted invoice URL passes it in as payment_url and this is unused.
-    const link =
-      payment_url ||
-      `${process.env.NEXT_PUBLIC_APP_URL || ''}/pay/${invoice_id || invoice_number}`
+    let link: string | null = null
+    if (payment_url) {
+      const parsed = parsePublicUrl(payment_url)
+      if (parsed.protocol !== 'https:') return { sent: false, error: 'Payment URL must use HTTPS.' }
+      link = parsed.href
+    }
 
     const safeCompany = escapeHtml(companyName)
     const safeName = escapeHtml(greetingName)
     const safeNumber = escapeHtml(invoice_number)
-    const safeLink = escapeHtml(link)
+    const safeLink = link ? escapeHtml(link) : null
 
     const subject = `Invoice ${invoice_number} from ${companyName} — ${amount} due ${due}`
 
@@ -234,9 +237,9 @@ export async function sendInvoiceEmail(
           </tr>
         </table>
 
-        <p style="margin:24px 0;">
+        ${safeLink ? `<p style="margin:24px 0;">
           <a href="${safeLink}" style="background:#2563EB;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block;">Pay this invoice</a>
-        </p>
+        </p>` : '<p>Contact the business to arrange payment.</p>'}
 
         <p>If anything looks off, or if the timing is tricky this month, just reply
         to this email — we're happy to sort it out with you.</p>
@@ -254,7 +257,7 @@ export async function sendInvoiceEmail(
       `Amount due: ${amount}`,
       `Due date: ${due}`,
       '',
-      `Pay this invoice: ${link}`,
+      link ? `Pay this invoice: ${link}` : 'Contact the business to arrange payment.',
       '',
       `If anything looks off, or if the timing is tricky this month, just reply to`,
       `this email — we're happy to sort it out with you.`,
@@ -300,8 +303,8 @@ export async function sendInvoiceEmail(
       return { sent: false, error: error.message || String(error) }
     }
 
-    // Step recorded only on a confirmed send, so the log can be trusted as a
-    // record of what actually reached the customer.
+    if (!data?.id) return { sent: false, error: 'Email provider returned no receipt.' }
+    // Provider acceptance is evidence of submission, not inbox delivery.
     await logAgentRun({
       client_id,
       agent_type: 'invoice_chase',

@@ -5,14 +5,19 @@ interface CardProps {
   className?: string
   padding?: 'none' | 'sm' | 'md' | 'lg'
   hover?: boolean
+  /**
+   * `primary` keeps the elevated product card (border + light-catch).
+   * `flat` is a supporting block — plain surface, no border, no elevation.
+   */
+  elevated?: boolean
 }
 
-// Flat card: 1px border, 8px radius, no shadow.
 export default function Card({
   children,
   className = '',
   padding = 'md',
   hover = false,
+  elevated = true,
 }: CardProps) {
   const paddings = {
     none: '',
@@ -21,11 +26,15 @@ export default function Card({
     lg: 'p-6',
   }
 
+  const shell = elevated
+    ? 'rounded-lg border border-line bg-surface shadow-lightcatch'
+    : 'rounded-lg bg-surface/60'
+
   return (
     <div className={`
-      rounded-lg border border-[#1F1F23] bg-[#111113]
+      ${shell}
       ${paddings[padding]}
-      ${hover ? 'hover:border-[#2A2A30] transition-colors duration-200 cursor-pointer' : ''}
+      ${hover ? 'card-lift cursor-pointer hover:border-line-strong' : ''}
       ${className}
     `}>
       {children}

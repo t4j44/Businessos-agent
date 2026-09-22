@@ -15,6 +15,8 @@ import { AgentCard } from '@/components/dashboard/AgentCard';
 import { AGENTS, normalizeStatus } from '@/lib/agent-catalog';
 import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { ActivityFeed } from '@/components/ActivityFeed';
+import { MetricCard } from '@/components/ui/MetricCard';
+import { Pending, SkeletonCard } from '@/components/ui/Skeleton';
 
 const TARGETS = {
   callResolution: 65,
@@ -45,26 +47,26 @@ function WareRing({ score }: { score: number }) {
   const circumference = 2 * Math.PI * radius;
   const ratio = Math.max(0, Math.min(1, score / 1000));
 
-  const color = score > 700 ? '#10B981' : score >= 400 ? '#F59E0B' : '#EF4444';
+  const color = score > 700 ? tokens.colors.success : score >= 400 ? tokens.colors.warning : tokens.colors.danger;
 
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
         <circle
           cx={size / 2} cy={size / 2} r={radius}
-          fill="none" stroke="#1F1F23" strokeWidth={stroke}
+          fill="none" stroke={tokens.colors.bg.border} strokeWidth={stroke}
         />
         <circle
           cx={size / 2} cy={size / 2} r={radius}
           fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - ratio)}
-          className="transition-[stroke-dashoffset] duration-700 ease-out"
+          className="transition-[stroke-dashoffset] duration-std ease-std"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-xl font-bold tracking-tight" style={{ color }}>{score}</span>
-        <span className="text-[10px] font-medium text-[#71717A]">/ 1000</span>
+        <span className="text-[10px] font-medium text-dim">/ 1000</span>
       </div>
     </div>
   );
@@ -79,11 +81,11 @@ function ActionCard({
     <button
       type="button"
       onClick={() => router.push(href)}
-      className="group w-full rounded-xl border border-[#1F1F23] bg-[#111113] p-5 text-left transition-colors duration-200 hover:border-[#3F3F46] hover:bg-[#17171A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0B]"
+      className="group w-full rounded-lg border border-line bg-gradient-to-b from-raised to-surface p-5 text-left shadow-lightcatch transition-colors duration-std hover:border-line-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
     >
       <div className="flex items-start justify-between gap-3">
         <p className={tokens.type.metricLabel}>{label}</p>
-        <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-[#71717A] transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-[#A1A1AA]" />
+        <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-dim transition-transform duration-std group-hover:translate-x-0.5 group-hover:text-muted" />
       </div>
       {children}
     </button>
@@ -108,7 +110,7 @@ function BarWithTarget(props: any) {
       <line
         x1={targetX} x2={targetX}
         y1={y - 3} y2={y + height + 3}
-        stroke="#F4F4F5" strokeWidth={1.5} strokeDasharray="3 2" opacity={0.55}
+        stroke={tokens.colors.text.primary} strokeWidth={1.5} strokeDasharray="3 2" opacity={0.55}
       />
     </g>
   );
@@ -225,15 +227,16 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] p-6 space-y-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="min-h-screen space-y-5 bg-canvas p-6">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-36 rounded-xl border border-[#1F1F23] bg-[#111113] animate-pulse" />
+            <SkeletonCard key={i} />
           ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-3 h-80 rounded-xl border border-[#1F1F23] bg-[#111113] animate-pulse" />
-          <div className="lg:col-span-2 h-80 rounded-xl border border-[#1F1F23] bg-[#111113] animate-pulse" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} rows={1} />
+          ))}
         </div>
       </div>
     );
@@ -241,23 +244,23 @@ export default function DashboardPage() {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] p-6">
-        <div className="rounded-xl border border-[#1F1F23] bg-[#111113]">
+      <div className="min-h-screen bg-canvas p-6">
+        <div className="rounded-xl border border-line bg-surface">
           <div className="flex flex-col items-center gap-4 px-6 py-20 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#EF4444]/10">
-              <AlertTriangle className="h-7 w-7 text-[#EF4444]" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-crit/10">
+              <AlertTriangle className="h-7 w-7 text-crit" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-[#F4F4F5]">
+              <h2 className="text-lg font-semibold text-text">
                 Couldn&apos;t load your dashboard
               </h2>
-              <p className="mx-auto mt-2 max-w-md text-sm text-[#71717A]">
+              <p className="mx-auto mt-2 max-w-md text-sm text-dim">
                 {error ?? 'No data was returned.'}
               </p>
             </div>
             <button
               onClick={() => load(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#7C3AED] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9]"
+              className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
             >
               <RefreshCw className="h-4 w-4" /> Try again
             </button>
@@ -275,7 +278,7 @@ export default function DashboardPage() {
   const brief = data.latest_brief;
 
   // Computed live from this week's activity, not the last stored brief.
-  const wareScore = data.ware_score ?? brief?.ware_score ?? 0;
+  const wareScore = data.ware_score;
   const revenue = Math.round((invoices.amount_collected_cents ?? invoices.paid_amount_cents ?? 0) / 100);
   const briefHref = brief?.id ? `/dashboard/brief/${brief.id}` : '/dashboard/brief';
 
@@ -300,7 +303,7 @@ export default function DashboardPage() {
     { name: 'Lead response', ...pct(leads.contacted, leads.total), target: TARGETS.leadResponse },
   ].map((r) => ({
     ...r,
-    fill: !r.hasData ? '#3F3F46' : r.value >= r.target ? '#10B981' : '#EF4444',
+    fill: !r.hasData ? '#332E42' : r.value >= r.target ? '#4FBF8B' : '#D96A6A',
   }));
 
   const behind = rates.filter((r) => r.hasData && r.value < r.target);
@@ -309,24 +312,24 @@ export default function DashboardPage() {
   // ── Nothing has happened yet: invite onboarding instead of showing zeros ──
   if (data.is_empty) {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] p-6">
-        <div className="rounded-xl border border-[#1F1F23] bg-[#111113]">
+      <div className="min-h-screen bg-canvas p-6">
+        <div className="rounded-xl border border-line bg-surface">
           <div className="flex flex-col items-center gap-4 px-6 py-20 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#7C3AED]/15">
-              <Rocket className="h-7 w-7 text-[#7C3AED]" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent/15">
+              <Rocket className="h-7 w-7 text-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-[#F4F4F5]">
+              <h2 className="text-lg font-semibold text-text">
                 Your AI team is set up and ready. Onboard your first client to see results.
               </h2>
-              <p className="mx-auto mt-2 max-w-md text-sm text-[#71717A]">
+              <p className="mx-auto mt-2 max-w-md text-sm text-dim">
                 Every call answered, review replied to, invoice chased, and brief written
                 will show up here automatically.
               </p>
             </div>
             <Link
               href="/onboarding"
-              className="inline-flex items-center gap-2 rounded-lg bg-[#7C3AED] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9]"
+              className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
             >
               Onboard your first client <ArrowRight className="h-4 w-4" />
             </Link>
@@ -337,22 +340,22 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] p-6 space-y-6">
+    <div className="min-h-screen bg-canvas p-6 space-y-6">
 
       {/* ── Brand not analysed yet ──────────────────────────────────────── */}
       {needsBrand && (
-        <div className="flex flex-col gap-3 rounded-lg border border-[#F59E0B]/30 bg-[#F59E0B]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg border border-warn/30 bg-warn/10 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#F59E0B]">
+            <p className="text-sm font-semibold text-warn">
               Your brand hasn&apos;t been analyzed yet.
             </p>
-            <p className="mt-0.5 text-sm text-[#A1A1AA]">
+            <p className="mt-0.5 text-sm text-muted">
               {clientUrl
                 ? 'Your agents write in a generic voice until Brand Scout reads your website.'
                 : 'Add your website in My Business first — Brand Scout needs a URL to read.'}
             </p>
             {analyseError && (
-              <p className="mt-1.5 text-xs text-[#EF4444]">{analyseError}</p>
+              <p className="mt-1.5 text-xs text-crit">{analyseError}</p>
             )}
           </div>
 
@@ -360,15 +363,15 @@ export default function DashboardPage() {
             <button
               onClick={analyseBrand}
               disabled={analysing}
-              className="inline-flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#7C3AED] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex flex-shrink-0 items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {analysing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+              {analysing ? <Pending /> : <Rocket className="h-4 w-4" />}
               {analysing ? 'Analyzing…' : 'Analyze Brand'}
             </button>
           ) : (
             <Link
               href="/dashboard/my-business"
-              className="inline-flex flex-shrink-0 items-center gap-2 rounded-lg border border-[#F59E0B]/40 px-4 py-2 text-sm font-medium text-[#F59E0B] transition-colors hover:bg-[#F59E0B]/10"
+              className="inline-flex flex-shrink-0 items-center gap-2 rounded-lg border border-warn/40 px-4 py-2 text-sm font-medium text-warn transition-colors hover:bg-warn/10"
             >
               Add website <ArrowRight className="h-4 w-4" />
             </Link>
@@ -385,9 +388,9 @@ export default function DashboardPage() {
             <button
               onClick={() => load(true)}
               disabled={refreshing}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#1F1F23] bg-transparent px-4 py-2 text-sm font-medium text-[#A1A1AA] transition-colors hover:border-[#2A2A30] hover:text-[#F4F4F5] disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-line bg-transparent px-4 py-2 text-sm font-medium text-muted transition-colors hover:border-line-strong hover:text-text disabled:opacity-50"
             >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? <Pending /> : <RefreshCw className="h-4 w-4" />}
               Refresh
             </button>
             <Link
@@ -402,43 +405,35 @@ export default function DashboardPage() {
 
       {/* ── This week at a glance (agent_runs + call_transcripts, 7 days) ── */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {[
-          {
-            label: 'Agent actions',
-            value: runs.total.toLocaleString(),
-            note: 'Runs in the last 7 days',
-          },
-          {
-            label: 'Cost this week',
-            value: '$' + (Number(runs.total_cost_usd) || 0).toFixed(3),
-            note: 'Across every agent',
-          },
-          {
-            label: 'Agents active',
-            value: String((runs.by_type ?? []).length),
-            note: 'Distinct agents that ran',
-          },
-          {
-            label: 'Calls handled',
-            value: calls.total.toLocaleString(),
-            note: 'Inbound calls logged',
-          },
-        ].map((m) => (
-          <div key={m.label} className="rounded-lg border border-[#1F1F23] bg-[#111113] p-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-[#71717A]">{m.label}</p>
-            <p className="mt-2 text-2xl font-semibold tracking-tight text-[#F4F4F5]">{m.value}</p>
-            <p className="mt-1 text-xs text-[#71717A]">{m.note}</p>
-          </div>
-        ))}
+        <MetricCard
+          label="Agent actions"
+          value={runs.total}
+          rows={[{ label: 'Window', value: '7 days' }]}
+        />
+        <MetricCard
+          label="Recorded AI cost"
+          value={'$' + (Number(runs.total_cost_usd) || 0).toFixed(3)}
+          rows={[{ label: 'Scope', value: 'Logged model usage' }]}
+        />
+        <MetricCard
+          label="Agents active"
+          value={(runs.by_type ?? []).length}
+          rows={[{ label: 'Of', value: String(AGENTS.length) }]}
+        />
+        <MetricCard
+          label="Calls handled"
+          value={calls.total}
+          rows={[{ label: 'Source', value: 'Inbound' }]}
+        />
       </div>
 
       {/* ── Your AI team ────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-2xl font-semibold leading-8 tracking-tight text-[#F4F4F5]">
+          <h2 className="font-display text-section font-normal text-text">
             Your AI team
           </h2>
-          <span className="text-xs text-[#71717A]">
+          <span className="text-xs text-dim">
             {runsByAgent.ranCount} of {AGENTS.length} active this week
           </span>
         </div>
@@ -463,22 +458,22 @@ export default function DashboardPage() {
 
         <ActionCard label="WARE Score" href={briefHref}>
           <div className="mt-3 flex items-center gap-4">
-            <WareRing score={wareScore} />
-            <p className="text-xs leading-relaxed text-[#71717A]">
-              {wareScore > 700 ? 'Strong week' : wareScore >= 400 ? 'Needs attention' : 'Falling behind'}
+            {wareScore == null ? <span className="text-3xl text-dim" aria-label="No score available">—</span> : <WareRing score={wareScore} />}
+            <p className="text-xs leading-relaxed text-dim">
+              {wareScore == null ? 'Insufficient evidence to score' : 'Internal operational indicator'}
             </p>
           </div>
         </ActionCard>
 
         <ActionCard label="Calls Handled" href="/dashboard/calls">
-          <p className={`mt-3 ${tokens.type.metric} text-[#F4F4F5]`}>{calls.total}</p>
-          <p className="mt-2 text-xs text-[#71717A]">
-            <span className="font-medium text-[#10B981]">{calls.resolved}</span> resolved without human
+          <p className={`mt-3 ${tokens.type.metric} text-text`}>{calls.total}</p>
+          <p className="mt-2 text-xs text-dim">
+            <span className="font-medium text-good">{calls.resolved}</span> resolved without human
           </p>
         </ActionCard>
 
         <ActionCard label="Reviews Managed" href="/dashboard/reviews">
-          <p className={`mt-3 ${tokens.type.metric} text-[#F4F4F5]`}>{reviews.total}</p>
+          <p className={`mt-3 ${tokens.type.metric} text-text`}>{reviews.total}</p>
           {reviews.total > 0 ? (
             <div className="mt-2 flex items-center gap-1.5">
               <div className="flex items-center gap-0.5">
@@ -487,24 +482,24 @@ export default function DashboardPage() {
                     key={i}
                     className={`h-3.5 w-3.5 ${
                       i < Math.round(reviews.avg_rating)
-                        ? 'fill-[#F59E0B] text-[#F59E0B]'
-                        : 'text-[#3F3F46]'
+                        ? 'fill-warn text-warn'
+                        : 'text-line-strong'
                     }`}
                   />
                 ))}
               </div>
-              <span className="text-xs text-[#71717A]">{reviews.avg_rating} avg</span>
+              <span className="text-xs text-dim">{reviews.avg_rating == null ? 'No rating data' : `${reviews.avg_rating} avg`}</span>
             </div>
           ) : (
-            <p className="mt-2 text-xs text-[#71717A]">No reviews yet</p>
+            <p className="mt-2 text-xs text-dim">No reviews yet</p>
           )}
         </ActionCard>
 
-        <ActionCard label="Revenue Collected" href="/dashboard/invoices">
-          <p className={`mt-3 ${tokens.type.metric} text-[#10B981]`}>
+        <ActionCard label="Recorded cash collected" href="/dashboard/invoices">
+          <p className={`mt-3 ${tokens.type.metric} text-good`}>
             ${revenue.toLocaleString()}
           </p>
-          <p className="mt-2 text-xs text-[#71717A]">
+          <p className="mt-2 text-xs text-dim">
             {invoices.paid} of {invoices.total_sent} invoices paid
           </p>
         </ActionCard>
@@ -513,11 +508,11 @@ export default function DashboardPage() {
       {/* ── Middle row: chart (60%) + approvals (40%) ────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
-        <div className="lg:col-span-3 rounded-xl border border-[#1F1F23] bg-[#111113]">
-          <div className="flex items-center justify-between border-b border-[#1F1F23] px-5 py-4">
+        <div className="lg:col-span-3 rounded-lg bg-surface/60">
+          <div className="flex items-center justify-between border-b border-line px-5 py-4">
             <div>
               <h2 className={tokens.type.cardTitle}>This week at a glance</h2>
-              <p className="mt-0.5 text-xs text-[#71717A]">
+              <p className="mt-0.5 text-xs text-dim">
                 Dashed line marks the target
               </p>
             </div>
@@ -541,28 +536,28 @@ export default function DashboardPage() {
                     axisLine={false}
                     tick={{ fill: '#A1A1AA', fontSize: 12 }}
                   />
-                  <Bar dataKey="value" shape={<BarWithTarget />} background={{ fill: '#17171A', radius: 4 }} isAnimationActive={false}>
+                  <Bar dataKey="value" shape={<BarWithTarget />} background={{ fill: '#17151F', radius: 4 }} isAnimationActive={false}>
                     {rates.map((r, i) => <Cell key={i} fill={r.fill} />)}
                   </Bar>
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#1F1F23] pt-4">
-              <span className="flex items-center gap-1.5 text-xs text-[#71717A]">
-                <span className="h-2 w-2 rounded-full bg-[#10B981]" /> On target
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-4">
+              <span className="flex items-center gap-1.5 text-xs text-dim">
+                <span className="h-2 w-2 rounded-full bg-good" /> On target
               </span>
-              <span className="flex items-center gap-1.5 text-xs text-[#71717A]">
-                <span className="h-2 w-2 rounded-full bg-[#EF4444]" /> Below target
+              <span className="flex items-center gap-1.5 text-xs text-dim">
+                <span className="h-2 w-2 rounded-full bg-crit" /> Below target
               </span>
               {noData.length > 0 && (
-                <span className="flex items-center gap-1.5 text-xs text-[#71717A]">
-                  <span className="h-2 w-2 rounded-full bg-[#3F3F46]" /> No data yet
+                <span className="flex items-center gap-1.5 text-xs text-dim">
+                  <span className="h-2 w-2 rounded-full bg-line-strong" /> No data yet
                 </span>
               )}
             </div>
 
-            <p className="mt-3 text-sm text-[#A1A1AA]">
+            <p className="mt-3 text-sm text-muted">
               {behind.length === 0
                 ? 'Everything with data is hitting target.'
                 : `${behind.length === 1 ? 'One metric is' : `${behind.length} metrics are`} below target: ${behind.map((b) => b.name.toLowerCase()).join(', ')}.`}
@@ -571,11 +566,11 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Needs your attention ───────────────────────────────────────── */}
-        <div className="lg:col-span-2 rounded-xl border border-[#1F1F23] bg-[#111113]">
-          <div className="flex items-center justify-between border-b border-[#1F1F23] px-5 py-4">
+        <div className="lg:col-span-2 rounded-xl border border-line bg-surface">
+          <div className="flex items-center justify-between border-b border-line px-5 py-4">
             <h2 className={tokens.type.cardTitle}>Needs your attention</h2>
             {approvals.length > 0 && (
-              <span className="rounded-full border border-[#7C3AED]/20 bg-[#7C3AED]/10 px-2 py-0.5 text-xs font-medium text-[#7C3AED]">
+              <span className="rounded-full border border-accent/20 bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
                 {approvals.length}
               </span>
             )}
@@ -583,26 +578,26 @@ export default function DashboardPage() {
 
           <div className="p-5">
             {approvalError && (
-              <p className="mb-3 text-xs text-[#EF4444]">{approvalError}</p>
+              <p className="mb-3 text-xs text-crit">{approvalError}</p>
             )}
 
             {approvals.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#10B981]/10">
-                  <CheckCircle2 className="h-6 w-6 text-[#10B981]" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-good/10">
+                  <CheckCircle2 className="h-6 w-6 text-good" />
                 </div>
-                <p className="text-sm font-medium text-[#F4F4F5]">You&apos;re all caught up!</p>
-                <p className="text-xs text-[#71717A]">Nothing needs your approval right now.</p>
+                <p className="text-sm font-medium text-text">You&apos;re all caught up!</p>
+                <p className="text-xs text-dim">Nothing needs your approval right now.</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {approvals.map((item: any) => (
-                  <div key={item.id} className="rounded-lg border border-[#1F1F23] bg-[#17171A] p-4">
-                    <p className="text-sm font-medium text-[#F4F4F5]">
+                  <div key={item.id} className="rounded-lg border border-line bg-raised p-4">
+                    <p className="text-sm font-medium text-text">
                       {(item.action_type || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
                     </p>
                     {item.payload_json?.description && (
-                      <p className="mt-1 line-clamp-1 text-xs text-[#71717A]">
+                      <p className="mt-1 line-clamp-1 text-xs text-dim">
                         {item.payload_json.description}
                       </p>
                     )}
@@ -610,14 +605,14 @@ export default function DashboardPage() {
                       <button
                         onClick={() => handleApproval(item.id, 'approved')}
                         disabled={approvingId === item.id}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#7C3AED] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#6D28D9] disabled:opacity-50"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
                       >
                         <Check className="h-3.5 w-3.5" /> Approve
                       </button>
                       <button
                         onClick={() => handleApproval(item.id, 'rejected')}
                         disabled={approvingId === item.id}
-                        className="flex items-center justify-center gap-1.5 rounded-lg border border-[#1F1F23] px-3 py-2 text-xs font-medium text-[#A1A1AA] transition-colors hover:bg-[#1F1F23] disabled:opacity-50"
+                        className="flex items-center justify-center gap-1.5 rounded-lg border border-line px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-line disabled:opacity-50"
                       >
                         <X className="h-3.5 w-3.5" /> Skip
                       </button>
@@ -631,13 +626,13 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Bottom: Monday Brief preview ─────────────────────────────────── */}
-      <div className="rounded-xl border border-[#1F1F23] bg-[#111113] p-5">
+      <div className="rounded-lg bg-surface/60 p-5">
         {!brief ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#7C3AED]/10">
-              <Rocket className="h-5 w-5 text-[#7C3AED]" />
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10">
+              <Rocket className="h-5 w-5 text-accent" />
             </div>
-            <p className="text-sm text-[#A1A1AA]">No Monday Brief yet — it appears once your agents have a week of activity.</p>
+            <p className="text-sm text-muted">No Monday Brief yet — it appears once your agents have a week of activity.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -647,7 +642,7 @@ export default function DashboardPage() {
             </div>
             <Link
               href={briefHref}
-              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-[#7C3AED] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9]"
+              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
             >
               Read full brief <ArrowRight className="h-4 w-4" />
             </Link>

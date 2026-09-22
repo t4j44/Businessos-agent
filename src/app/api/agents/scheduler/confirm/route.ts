@@ -4,6 +4,7 @@ import { logAgentRun } from '@/lib/log';
 import { getSchedulerContext, sendConfirmationEmail, formatWhen } from '@/lib/appointments';
 import type { SendEmailResult } from '@/lib/resend';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { isDate, isUuid, normalizeTime, readJsonBody, ValidationError } from '@/lib/validation';
 
 // POST /api/agents/scheduler/confirm
 //
@@ -20,20 +21,20 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = await req.json();
+    const body = await readJsonBody(req);
 
     const appointment_id = body?.appointment_id;
-    const confirmed_time = body?.confirmed_time;
+    const confirmed_time = normalizeTime(body?.confirmed_time);
     const confirmed_date = body?.confirmed_date;
 
-    if (!appointment_id || !confirmed_time) {
+    if (!isUuid(appointment_id) || !confirmed_time) {
       return NextResponse.json(
-        { error: 'appointment_id and confirmed_time are required.' },
+        { error: 'A valid appointment_id and an exact confirmed_time (HH:MM) are required.' },
         { status: 400 },
       );
     }
 
-    if (confirmed_date && Number.isNaN(new Date(`${confirmed_date}T00:00:00Z`).getTime())) {
+    if (confirmed_date !== undefined && !isDate(confirmed_date)) {
       return NextResponse.json(
         { error: 'confirmed_date must be a valid date (YYYY-MM-DD).' },
         { status: 400 },
@@ -44,16 +45,17 @@ export async function POST(req: Request) {
       .from('appointments')
       .select('id, client_id, customer_name, customer_email, requested_date, service_type, status')
       .eq('id', appointment_id)
+      .eq('client_id', clientId)
       .maybeSingle();
 
     if (findError) {
       console.error('[scheduler/confirm] lookup failed:', findError.message);
       return NextResponse.json({ error: findError.message }, { status: 500 });
     }
-    if (!existing) {
+    if (!existing || existing.client_id !== clientId) {
       return NextResponse.json({ error: 'Appointment not found.' }, { status: 404 });
     }
-    if (existing.status === 'cancelled') {
+    if (existing.status === 'cancelled' || existing.status === 'completed') {
       return NextResponse.json(
         { error: 'This appointment was cancelled — it cannot be confirmed.' },
         { status: 409 },
@@ -63,32 +65,38 @@ export async function POST(req: Request) {
     // Falls back to the requested day so the confirmation email always states a
     // full date rather than a bare time.
     const finalDate = confirmed_date || existing.requested_date;
+    if (!isDate(finalDate)) {
+      return NextResponse.json({ error: 'An exact confirmed_date is required.' }, { status: 400 });
+    }
+    const duration = body.duration_minutes ?? 30;
+    if (!Number.isInteger(duration) || duration < 5 || duration > 480) {
+      return NextResponse.json({ error: 'duration_minutes must be between 5 and 480.' }, { status: 400 });
+    }
 
-    const { data: appointment, error } = await supabaseAdmin
-      .from('appointments')
-      .update({
-        status: 'confirmed',
-        confirmed_date: finalDate,
-        confirmed_time,
-        updated_at: new Date().toISOString(),
-        // A change of time invalidates any reminder already sent.
-        reminder_sent: false,
-      })
-      .eq('id', appointment_id)
-      .select(
-        'id, client_id, customer_name, customer_email, customer_phone, requested_date, requested_time, confirmed_date, confirmed_time, service_type, status, notes, created_at',
-      )
-      .single();
+    // The database serializes confirmations within this business's calendar.
+    // Ownership, terminal state and overlap are checked again under the lock.
+    const { data: result, error } = await supabaseAdmin.rpc('confirm_appointment', {
+      p_client_id: clientId,
+      p_appointment_id: appointment_id,
+      p_date: finalDate,
+      p_time: confirmed_time,
+      p_duration_minutes: duration,
+    });
 
     if (error) {
       console.error('[scheduler/confirm] update failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Confirmation could not be saved. No confirmation email was sent.' }, { status: 503 });
     }
 
-    // Ownership: another tenant's appointment is indistinguishable
-    // from one that does not exist.
-    if (existing.client_id !== clientId) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (result?.outcome === 'not_found') return NextResponse.json({ error: 'Appointment not found.' }, { status: 404 });
+    if (result?.outcome === 'conflict') return NextResponse.json({ error: 'This time overlaps another confirmed appointment.' }, { status: 409 });
+    if (result?.outcome === 'invalid_state') return NextResponse.json({ error: 'A cancelled or completed appointment cannot be confirmed.' }, { status: 409 });
+    if (!['confirmed', 'unchanged'].includes(result?.outcome) || !result?.appointment) {
+      return NextResponse.json({ error: 'Confirmation was not completed.' }, { status: 503 });
+    }
+    const appointment = result.appointment;
+    if (result.outcome === 'unchanged') {
+      return NextResponse.json({ confirmed: true, appointment, unchanged: true, email: { sent: false, skipped: 'Already confirmed; notification not repeated.' } });
     }
 
     const ctx = await getSchedulerContext(existing.client_id);
@@ -121,6 +129,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ confirmed: true, appointment, email: emailResult });
   } catch (err: any) {
+    if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error('[scheduler/confirm] POST failed:', err);
     return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
   }

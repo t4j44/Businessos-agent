@@ -1,9 +1,10 @@
-// Business OS design system — flat, dark, high-contrast.
+// Business OS design system — the TypeScript mirror.
 //
-// The canonical values live as CSS variables in globals.css and as semantic
-// names in tailwind.config.ts. This module is the TypeScript mirror, for the
-// places that need a raw hex (SVG strokes, Recharts fills) or a ready-made
-// class string.
+// THE PALETTE LIVES IN src/app/globals.css. This module exists only for the
+// places that cannot use a Tailwind class: SVG stroke/fill attributes, Recharts
+// props, canvas drawing. Keep the hex values here in step with the RGB channels
+// declared there — they are the same colours written two ways because two
+// different consumers need two different formats.
 //
 // Import as a namespace to avoid the `import { type }` parsing ambiguity in
 // TypeScript (`type` is a contextual keyword in import clauses):
@@ -11,45 +12,55 @@
 //   <p className={tokens.type.metric}>
 
 export const colors = {
-  // Backgrounds
+  // Surfaces. The greys carry a faint violet bias — pure neutral grey reads as
+  // an unmade decision.
   bg: {
-    base: '#0A0A0B',        // page canvas
-    card: '#111113',        // card surface
-    cardHover: '#17171A',   // card on hover
-    border: '#1F1F23',      // every 1px border
-    borderStrong: '#2A2A30',// hover / focus border
-    input: '#17171A',       // input fields
+    base: '#08070C',        // page ground
+    card: '#100E16',        // card surface
+    cardHover: '#17151F',   // card on hover
+    border: '#262233',      // every 1px border
+    borderSoft: '#1B1826',  // internal dividers
+    borderStrong: '#332E42',// hover / focus border
+    input: '#17151F',       // input fields
   },
-  // Brand — purple, professional
-  primary: '#7C3AED',
-  primaryHover: '#6D28D9',
-  // Status
-  running: '#F59E0B',       // amber   — in flight
-  success: '#10B981',       // emerald — completed
-  danger:  '#EF4444',       // red     — failed
-  idle:    '#52525B',       // grey    — never run
-  // Retained aliases used by existing charts.
-  warning: '#F59E0B',
+  // Brand. `copper` is a second voice for editorial accents and never appears
+  // on anything a pointer can act on.
+  primary: '#7C5CFF',
+  primaryHover: '#6B4AE6',
+  primaryBright: '#A896FF',
+  copper: '#C98B5E',
+  // Semantic. Meaning only, and never interchangeable with the accent: no
+  // success state in primary, no button or link in success/warning/danger.
+  success: '#4FBF8B',
+  warning: '#D9A441',
+  running: '#D9A441',
+  danger:  '#D96A6A',
+  idle:    '#4A4658',
   // Text
   text: {
-    primary: '#F4F4F5',
-    secondary: '#A1A1AA',
-    muted: '#71717A',
-    faint: '#52525B',
+    primary: '#F2F0F7',
+    secondary: '#8B87A0',
+    muted: '#615D75',
+    faint: '#4A4658',
   },
 }
 
-// Typography scale: 12 labels / 14 body / 16 subhead / 24 section / 32 page.
+// Typography scale: 10.5 eyebrow / 12 label / 14 body / 16 subhead / 24 section
+// / 32 page / 46 figure.
+//
+// font-display (Instrument Serif) appears on `metric` and `pageTitle` only.
+// Everywhere else is font-sans (Archivo). A serif in UI chrome reads as a
+// rendering fault rather than as taste.
 export const type = {
-  pageTitle:   'text-[32px] leading-10 font-semibold tracking-tight text-[#F4F4F5]',
-  sectionTitle:'text-2xl leading-8 font-semibold tracking-tight text-[#F4F4F5]',
-  subhead:     'text-base leading-6 font-semibold text-[#F4F4F5]',
-  body:        'text-sm leading-5 text-[#A1A1AA]',
-  label:       'text-xs font-medium uppercase tracking-wider text-[#71717A]',
+  pageTitle:   'font-display text-page font-normal text-text',
+  sectionTitle:'text-section font-semibold text-text',
+  subhead:     'text-subhead font-semibold text-text',
+  body:        'text-body text-muted',
+  label:       'eyebrow text-dim',
   // Metric readouts.
-  metric:      'text-[32px] leading-10 font-semibold tracking-tight',
-  metricLabel: 'text-xs font-medium uppercase tracking-wider text-[#71717A]',
-  cardTitle:   'text-base leading-6 font-semibold text-[#F4F4F5]',
+  metric:      'font-display text-figure tabular',
+  metricLabel: 'eyebrow text-dim',
+  cardTitle:   'text-subhead font-semibold text-text',
 }
 
 // Tailwind v3 JIT only generates classes it finds as complete literal strings
@@ -57,33 +68,36 @@ export const type = {
 // runtime. These are the same palette pre-written as usable classes.
 export const tw = {
   bg: {
-    base: 'bg-[#0A0A0B]',
-    card: 'bg-[#111113]',
-    cardHover: 'hover:bg-[#17171A]',
-    input: 'bg-[#17171A]',
+    base: 'bg-canvas',
+    card: 'bg-surface',
+    cardHover: 'hover:bg-raised',
+    input: 'bg-raised',
   },
-  border: 'border-[#1F1F23]',
-  borderHover: 'hover:border-[#2A2A30]',
-  // Flat cards: 1px border, 8px radius, no shadow.
-  card: 'rounded-lg border border-[#1F1F23] bg-[#111113]',
+  border: 'border-line',
+  borderHover: 'hover:border-line-strong',
+  // The product card: 1px border, 10px radius, top light-catch, no drop shadow.
+  card: 'rounded-lg border border-line bg-surface shadow-lightcatch',
+  // A supporting block: no border, no elevation. See the note in Skeleton.tsx
+  // about uniform treatment destroying hierarchy.
+  panel: 'rounded-lg bg-surface/60',
   text: {
-    primary: 'text-[#F4F4F5]',
-    secondary: 'text-[#A1A1AA]',
-    muted: 'text-[#71717A]',
-    faint: 'text-[#52525B]',
-    primaryBrand: 'text-[#7C3AED]',
-    success: 'text-[#10B981]',
-    warning: 'text-[#F59E0B]',
-    running: 'text-[#F59E0B]',
-    danger: 'text-[#EF4444]',
+    primary: 'text-text',
+    secondary: 'text-muted',
+    muted: 'text-dim',
+    faint: 'text-faint',
+    primaryBrand: 'text-accent',
+    success: 'text-good',
+    warning: 'text-warn',
+    running: 'text-warn',
+    danger: 'text-crit',
   },
   btn: {
-    // Primary CTA is the one place a gradient is allowed.
     primary:
-      'inline-flex items-center justify-center gap-2 rounded-lg bg-[#7C3AED] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED]/40 disabled:opacity-50 disabled:cursor-not-allowed',
+      'inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-50 disabled:cursor-not-allowed',
+    // Primary CTA is the one place a gradient is allowed.
     cta:
-      'btn-accent-gradient inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED]/40 disabled:opacity-50 disabled:cursor-not-allowed',
+      'btn-accent-gradient inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-50 disabled:cursor-not-allowed',
     secondary:
-      'inline-flex items-center justify-center gap-2 rounded-lg border border-[#1F1F23] bg-transparent px-4 py-2 text-sm font-medium text-[#A1A1AA] transition-colors hover:border-[#2A2A30] hover:text-[#F4F4F5] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED]/40 disabled:opacity-50 disabled:cursor-not-allowed',
+      'inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-transparent px-4 py-2 text-sm font-medium text-muted hover:border-line-strong hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-50 disabled:cursor-not-allowed',
   },
 }

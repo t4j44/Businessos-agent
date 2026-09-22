@@ -42,13 +42,12 @@ export async function POST(req: Request) {
   try {
     const params = reqBody;
     const client_id = clientId;
-    const metrics = params?.metrics;
 
     if (!client_id) {
       return NextResponse.json({ error: 'client_id is required.' }, { status: 400 });
     }
 
-    const { status, body } = await runBiReporter(client_id, metrics);
+    const { status, body } = await runBiReporter(client_id);
     if (status !== 200) {
       return NextResponse.json(body, { status });
     }

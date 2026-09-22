@@ -27,61 +27,17 @@ export async function findOrCreateContact(params: {
   name?: string
   source?: string
 }): Promise<ContactRef | null> {
-  if (!params.email && !params.phone) return null
-
-  try {
-    // Email first — it is the stronger identifier when both are present.
-    if (params.email) {
-      const { data, error } = await supabaseAdmin
-        .from('contacts')
-        .select('id, score, status')
-        .eq('client_id', params.client_id)
-        .eq('email', params.email)
-        .maybeSingle()
-      if (error) {
-        console.error('findOrCreateContact email lookup failed:', error.message)
-        return null
-      }
-      if (data) return data as ContactRef
-    }
-
-    if (params.phone) {
-      const { data, error } = await supabaseAdmin
-        .from('contacts')
-        .select('id, score, status')
-        .eq('client_id', params.client_id)
-        .eq('phone', params.phone)
-        .maybeSingle()
-      if (error) {
-        console.error('findOrCreateContact phone lookup failed:', error.message)
-        return null
-      }
-      if (data) return data as ContactRef
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('contacts')
-      .insert({
-        client_id: params.client_id,
-        email: params.email || null,
-        phone: params.phone || null,
-        name: params.name || null,
-        source: params.source || null,
-        score: 0,
-        status: 'active',
-      })
-      .select('id, score, status')
-      .single()
-
-    if (error) {
-      console.error('findOrCreateContact insert failed:', error.message)
-      return null
-    }
-    return data as ContactRef
-  } catch (e) {
-    console.error('findOrCreateContact error:', e)
-    return null
-  }
+  const email = params.email?.trim().toLowerCase() || null
+  const phone = params.phone?.replace(/[\s().-]/g, '') || null
+  if (!email && !phone) return null
+  if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return null
+  if (phone && !/^\+[1-9]\d{7,14}$/.test(phone)) return null
+  const { data, error } = await supabaseAdmin.rpc('resolve_contact', {
+    p_client_id: params.client_id, p_email: email, p_phone: phone,
+    p_name: params.name?.slice(0, 200) || null, p_source: params.source || null,
+  })
+  if (error) { console.error('[contacts] identity resolution failed:', error.code); return null }
+  return data as ContactRef | null
 }
 
 // ── 2. Log an interaction ────────────────────────────────────────────────────
@@ -123,6 +79,7 @@ export async function logInteraction(params: {
 
 // ── 3. Read history ──────────────────────────────────────────────────────────
 export async function getContactHistory(params: {
+  client_id: string
   contact_id: string
   limit?: number
 }): Promise<Array<{
@@ -137,6 +94,7 @@ export async function getContactHistory(params: {
       .from('contact_interactions')
       .select('agent_name, interaction_type, summary, sentiment_score, created_at')
       .eq('contact_id', params.contact_id)
+      .eq('client_id', params.client_id)
       .order('created_at', { ascending: false })
       .limit(params.limit ?? 10)
 
@@ -152,44 +110,16 @@ export async function getContactHistory(params: {
 }
 
 // ── 4. Adjust score ──────────────────────────────────────────────────────────
-// Read-modify-write as specified. Note this is not atomic: two interactions
-// landing at the same moment can each read the same starting score and one
-// delta is lost. Fine at current volume; if it matters later, move the clamp
-// into a Postgres function and call it via rpc().
+// The database applies each tenant-scoped score change atomically.
 export async function updateContactScore(params: {
+  client_id: string
   contact_id: string
   score_delta: number
 }): Promise<void> {
-  try {
-    const { data, error: readError } = await supabaseAdmin
-      .from('contacts')
-      .select('score')
-      .eq('id', params.contact_id)
-      .maybeSingle()
-
-    if (readError) {
-      console.error('updateContactScore read failed:', readError.message)
-      return
-    }
-    if (!data) {
-      console.error('updateContactScore: contact not found:', params.contact_id)
-      return
-    }
-
-    const current = Number(data.score) || 0
-    const next = Math.max(SCORE_MIN, Math.min(SCORE_MAX, current + params.score_delta))
-
-    const { error: writeError } = await supabaseAdmin
-      .from('contacts')
-      .update({ score: next, updated_at: new Date().toISOString() })
-      .eq('id', params.contact_id)
-
-    if (writeError) {
-      console.error('updateContactScore write failed:', writeError.message)
-    }
-  } catch (e) {
-    console.error('updateContactScore error:', e)
-  }
+  const { error } = await supabaseAdmin.rpc('adjust_contact_score', {
+    p_client_id: params.client_id, p_contact_id: params.contact_id, p_delta: params.score_delta,
+  })
+  if (error) console.error('[contacts] score update failed:', error.code)
 }
 
 // ── Deprecated compatibility shim ────────────────────────────────────────────
@@ -199,6 +129,7 @@ export async function updateContactScore(params: {
 // Prefer updateContactScore.
 export async function updateContactStats(
   contactId: string,
+  clientId: string,
   updates: {
     lastContactAt?: string
     scoreChange?: number
@@ -219,10 +150,11 @@ export async function updateContactStats(
       .from('contacts')
       .update(updateData)
       .eq('id', contactId)
+      .eq('client_id', clientId)
     if (error) console.error('updateContactStats failed:', error.message)
 
     if (updates.scoreChange) {
-      await updateContactScore({ contact_id: contactId, score_delta: updates.scoreChange })
+      await updateContactScore({ client_id: clientId, contact_id: contactId, score_delta: updates.scoreChange })
     }
   } catch (e) {
     console.error('updateContactStats error:', e)

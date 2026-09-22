@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { MetricCard } from '@/components/ui/MetricCard';
+import { Pending, SkeletonCard, SkeletonTable } from '@/components/ui/Skeleton';
 import {
   ChevronLeft, ChevronRight, Search, X, Plus, Flame, Ban,
   Building2, User, Clock, Save, SlidersHorizontal, CheckSquare,
-  BarChart2, TrendingUp, Send, Users, Target,
+  Target, Users,
 } from 'lucide-react';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -23,9 +25,9 @@ const LEAD_STATUSES = [
 ];
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:         'bg-[#52525B]/15 text-[#A1A1AA] border-[#2A2A30]/25',
-  emailed:         'bg-[#7C3AED]/15 text-[#7C3AED] border-[#7C3AED]/25',
-  replied:         'bg-[#7C3AED]/15 text-[#7C3AED] border-[#7C3AED]/25',
+  pending:         'bg-faint/15 text-muted border-line-strong/25',
+  emailed:         'bg-accent/15 text-accent border-accent/25',
+  replied:         'bg-accent/15 text-accent border-accent/25',
   hot:             'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
   do_not_contact:  'bg-red-500/15 text-red-400 border-red-500/25',
 };
@@ -67,11 +69,8 @@ interface Stats {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-function getReplyRateColor(r: number) {
-  return r > 5 ? 'text-emerald-400' : r >= 2 ? 'text-amber-400' : 'text-red-400';
-}
 function getScoreColor(s: number) {
-  return s >= 70 ? 'bg-amber-400' : s >= 50 ? 'bg-emerald-400' : 'bg-[#7C3AED]';
+  return s >= 70 ? 'bg-warn' : s >= 50 ? 'bg-good' : 'bg-accent';
 }
 
 function timeAgo(iso: string | null) {
@@ -92,11 +91,11 @@ function Checkbox({ label, checked, onChange }: { label: string; checked: boolea
   return (
     <label className="flex items-center gap-2 cursor-pointer group select-none">
       <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
-        checked ? 'bg-[#7C3AED] border-[#7C3AED]' : 'border-[#2A2A30] group-hover:border-[#2A2A30] bg-[#17171A]'
+        checked ? 'bg-accent border-accent' : 'border-line-strong group-hover:border-line-strong bg-raised'
       }`}>
         {checked && <CheckSquare className="w-3.5 h-3.5 text-white" />}
       </div>
-      <span className="text-sm text-[#A1A1AA] group-hover:text-[#F4F4F5]">{label}</span>
+      <span className="text-sm text-muted group-hover:text-text">{label}</span>
     </label>
   );
 }
@@ -104,20 +103,16 @@ function Checkbox({ label, checked, onChange }: { label: string; checked: boolea
 // A metric with no underlying activity renders a dash, never a zero that could
 // be mistaken for a measured result.
 function Stat({
-  icon: Icon, label, value, hasData, valueClass = 'text-white',
+  label, value, hasData, state,
 }: {
-  icon: React.ElementType; label: string; value: string; hasData: boolean; valueClass?: string;
+  label: string; value: string; hasData: boolean; state?: 'good' | 'warn' | 'crit';
 }) {
   return (
-    <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-4">
-      <div className="flex items-center gap-2 text-[#A1A1AA] mb-2">
-        <Icon className="w-4 h-4" />
-        <h3 className="text-xs font-medium uppercase tracking-wider">{label}</h3>
-      </div>
-      <p className={`text-2xl font-semibold ${hasData ? valueClass : 'text-[#52525B]'}`}>
-        {hasData ? value : '—'}
-      </p>
-    </div>
+    <MetricCard
+      label={label}
+      value={hasData ? value : '—'}
+      state={hasData ? state : undefined}
+    />
   );
 }
 
@@ -244,12 +239,12 @@ export default function HunterLeadsPage() {
   const handleApplyFilters = () => setPage(0);
 
   const icpPanel = icpOpen && icp && (
-    <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-5">
+    <div className="bg-surface rounded-xl border border-line/50 p-5">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-[#A1A1AA] mb-2">Job titles to target</label>
+            <label className="block text-sm font-medium text-muted mb-2">Job titles to target</label>
             <div className="flex items-center gap-2 mb-2">
               <input
                 type="text"
@@ -257,58 +252,58 @@ export default function HunterLeadsPage() {
                 onChange={(e) => setTitleInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addTitle()}
                 placeholder="e.g. CTO, VP Engineering..."
-                className="flex-1 bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none"
+                className="flex-1 bg-surface border border-line rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none"
               />
-              <button onClick={addTitle} className="p-2 bg-[#17171A] hover:bg-[#1F1F23] border border-[#1F1F23] rounded-lg">
+              <button onClick={addTitle} className="p-2 bg-raised hover:bg-line border border-line rounded-lg">
                 <Plus className="w-4 h-4" />
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
               {icp.titles.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#7C3AED]/20 text-[#A78BFA] border border-[#7C3AED]/20 text-xs font-medium">
+                <span key={t} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-accent/20 text-accent-bright border border-accent/20 text-xs font-medium">
                   {t}
-                  <button onClick={() => removeTitle(t)} className="text-[#A78BFA] hover:text-[#F4F4F5] transition-colors"><X className="w-3 h-3" /></button>
+                  <button onClick={() => removeTitle(t)} className="text-accent-bright hover:text-text transition-colors"><X className="w-3 h-3" /></button>
                 </span>
               ))}
-              {icp.titles.length === 0 && <span className="text-xs text-[#71717A] italic">No job titles specified.</span>}
+              {icp.titles.length === 0 && <span className="text-xs text-dim italic">No job titles specified.</span>}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#A1A1AA] mb-2">Company Size</label>
+            <label className="block text-sm font-medium text-muted mb-2">Company Size</label>
             <div className="flex items-center gap-4">
               <input
                 type="number" min="1" placeholder="Min"
                 value={icp.companySizeMin ?? ''}
                 onChange={(e) => setIcp((p) => p ? ({ ...p, companySizeMin: e.target.value === '' ? null : parseInt(e.target.value) }) : p)}
-                className="flex-1 bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none"
+                className="flex-1 bg-surface border border-line rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none"
               />
-              <span className="text-[#71717A]">to</span>
+              <span className="text-dim">to</span>
               <input
                 type="number" min="2" placeholder="Max"
                 value={icp.companySizeMax ?? ''}
                 onChange={(e) => setIcp((p) => p ? ({ ...p, companySizeMax: e.target.value === '' ? null : parseInt(e.target.value) }) : p)}
-                className="flex-1 bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none"
+                className="flex-1 bg-surface border border-line rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none"
               />
-              <span className="text-sm text-[#A1A1AA]">employees</span>
+              <span className="text-sm text-muted">employees</span>
             </div>
           </div>
         </div>
 
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-[#A1A1AA] mb-2">Industries (comma separated)</label>
+            <label className="block text-sm font-medium text-muted mb-2">Industries (comma separated)</label>
             <input
               type="text"
               value={icp.industries}
               placeholder="e.g. SaaS, Technology, Marketing"
               onChange={(e) => setIcp((p) => p ? ({ ...p, industries: e.target.value }) : p)}
-              className="w-full bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none"
+              className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#A1A1AA] mb-3">Seniority levels</label>
+            <label className="block text-sm font-medium text-muted mb-3">Seniority levels</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {SENIORITY_LEVELS.map((lvl) => (
                 <Checkbox key={lvl} label={lvl} checked={icp.seniority.includes(lvl)} onChange={() => toggleSeniority(lvl)} />
@@ -318,16 +313,16 @@ export default function HunterLeadsPage() {
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-[#A1A1AA]">Daily email volume limit</label>
-              <span className="text-sm font-semibold text-[#F4F4F5] bg-[#17171A] px-2.5 py-1 rounded-md">{icp.dailyEmailLimit}</span>
+              <label className="text-sm font-medium text-muted">Daily email volume limit</label>
+              <span className="text-sm font-semibold text-text bg-raised px-2.5 py-1 rounded-md">{icp.dailyEmailLimit}</span>
             </div>
             <input
               type="range" min="10" max="100" step="5"
               value={icp.dailyEmailLimit}
               onChange={(e) => setIcp((p) => p ? ({ ...p, dailyEmailLimit: parseInt(e.target.value) }) : p)}
-              className="w-full accent-blue-500 bg-[#17171A] h-2 rounded-lg appearance-none cursor-pointer"
+              className="w-full accent-blue-500 bg-raised h-2 rounded-lg appearance-none cursor-pointer"
             />
-            <div className="flex justify-between text-xs text-[#71717A] mt-2">
+            <div className="flex justify-between text-xs text-dim mt-2">
               <span>10 (Cautious)</span>
               <span>100 (Aggressive)</span>
             </div>
@@ -335,15 +330,15 @@ export default function HunterLeadsPage() {
         </div>
       </div>
 
-      <div className="mt-6 pt-5 border-t border-[#1F1F23]/50 flex items-center justify-end gap-4">
+      <div className="mt-6 pt-5 border-t border-line/50 flex items-center justify-end gap-4">
         {icpError && <p className="text-xs text-red-400">{icpError}</p>}
         <button
           onClick={handleSaveConfig}
           disabled={savingIcp}
-          className="flex items-center gap-2 bg-[#7C3AED] hover:bg-[#6D28D9] disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           {savingIcp
-            ? <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+            ? <Pending />
             : <Save className="w-4 h-4" />}
           Save Configuration
         </button>
@@ -353,21 +348,21 @@ export default function HunterLeadsPage() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-6 bg-[#0A0A0B] min-h-full">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="min-h-full space-y-6 bg-canvas p-6">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-24 rounded-xl border border-[#1F1F23]/50 bg-[#111113] animate-pulse" />
+            <SkeletonCard key={i} />
           ))}
         </div>
-        <div className="h-96 rounded-xl border border-[#1F1F23]/50 bg-[#111113] animate-pulse" />
+        <SkeletonTable rows={8} cols={5} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6 bg-[#0A0A0B] min-h-full">
-        <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-6">
+      <div className="p-6 bg-canvas min-h-full">
+        <div className="bg-surface rounded-xl border border-line/50 p-6">
           <p className="text-sm text-red-400">Couldn&apos;t load leads — {error}</p>
         </div>
       </div>
@@ -377,15 +372,15 @@ export default function HunterLeadsPage() {
   // ── No leads found yet ───────────────────────────────────────────────────
   if (leads.length === 0) {
     return (
-      <div className="p-6 bg-[#0A0A0B] min-h-full space-y-6 text-[#F4F4F5]">
+      <div className="p-6 bg-canvas min-h-full space-y-6 text-text">
         <div className="flex items-center justify-between">
-          <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-[#F4F4F5]">Hunter Dashboard</h1>
+          <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-text">Hunter Dashboard</h1>
           <button
             onClick={() => setIcpOpen(!icpOpen)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
               icpOpen
-                ? 'bg-[#7C3AED] text-white border-[#7C3AED]'
-                : 'bg-[#111113] text-[#A1A1AA] border-[#1F1F23]/50 hover:bg-[#17171A]'
+                ? 'bg-accent text-white border-accent'
+                : 'bg-surface text-muted border-line/50 hover:bg-raised'
             }`}
           >
             <SlidersHorizontal className="w-4 h-4" />
@@ -395,16 +390,16 @@ export default function HunterLeadsPage() {
 
         {icpPanel}
 
-        <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50">
+        <div className="bg-surface rounded-xl border border-line/50">
           <div className="flex flex-col items-center gap-4 px-6 py-20 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#7C3AED]/15">
-              <Target className="h-7 w-7 text-[#7C3AED]" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent/15">
+              <Target className="h-7 w-7 text-accent" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">
                 No leads yet. Configure your ICP to start finding prospects.
               </h2>
-              <p className="mx-auto mt-2 max-w-md text-sm text-[#71717A]">
+              <p className="mx-auto mt-2 max-w-md text-sm text-dim">
                 Once your ideal customer profile is set, the Hunter agent sources,
                 enriches, and scores prospects here automatically.
               </p>
@@ -412,7 +407,7 @@ export default function HunterLeadsPage() {
             {!icpOpen && (
               <button
                 onClick={() => setIcpOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#7C3AED] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9]"
+                className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
               >
                 <SlidersHorizontal className="w-4 h-4" />
                 Configure target ICP
@@ -425,19 +420,19 @@ export default function HunterLeadsPage() {
   }
 
   return (
-    <div className="h-full flex relative overflow-hidden bg-[#0A0A0B] text-[#F4F4F5]">
+    <div className="h-full flex relative overflow-hidden bg-canvas text-text">
 
       <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out ${selectedLead ? 'mr-96' : ''}`}>
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
           <div className="flex items-center justify-between">
-            <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-[#F4F4F5]">Hunter Dashboard</h1>
+            <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-text">Hunter Dashboard</h1>
             <button
               onClick={() => setIcpOpen(!icpOpen)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
                 icpOpen
-                  ? 'bg-[#7C3AED] text-white border-[#7C3AED]'
-                  : 'bg-[#111113] text-[#A1A1AA] border-[#1F1F23]/50 hover:bg-[#17171A]'
+                  ? 'bg-accent text-white border-accent'
+                  : 'bg-surface text-muted border-line/50 hover:bg-raised'
               }`}
             >
               <SlidersHorizontal className="w-4 h-4" />
@@ -449,92 +444,88 @@ export default function HunterLeadsPage() {
           {stats && (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <Stat
-                icon={Users} label="Total leads"
+                label="Total leads"
                 value={stats.total_leads.toLocaleString()}
                 hasData={stats.total_leads > 0}
               />
               <Stat
-                icon={Send} label="Emails sent (mo)"
+                label="Emails sent (mo)"
                 value={stats.emails_sent_this_month.toLocaleString()}
                 hasData={stats.emails_sent_this_month > 0}
               />
               <Stat
-                icon={BarChart2} label="Contacted"
+                label="Contacted"
                 value={stats.contacted.toLocaleString()}
                 hasData={stats.contacted > 0}
               />
               <Stat
-                icon={TrendingUp} label="Reply Rate"
+                label="Reply Rate"
                 value={stats.reply_rate !== null ? `${stats.reply_rate}%` : ''}
                 hasData={stats.reply_rate !== null}
-                valueClass={stats.reply_rate !== null ? getReplyRateColor(stats.reply_rate) : ''}
+                state={
+                  stats.reply_rate == null ? undefined
+                    : stats.reply_rate >= 10 ? 'good'
+                    : stats.reply_rate >= 5 ? 'warn'
+                    : 'crit'
+                }
               />
 
-              <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 p-4 flex flex-col justify-center">
-                <div className="flex items-end justify-between mb-2">
-                  <div className="flex items-center gap-2 text-[#A1A1AA]">
-                    <Clock className="w-4 h-4" />
-                    <h3 className="text-xs font-medium uppercase tracking-wider">Daily Limit</h3>
-                  </div>
-                  <span className="text-xs font-mono text-[#A1A1AA]">{stats.daily_sent}/{stats.daily_limit}</span>
-                </div>
-                <div className="w-full h-1.5 bg-[#17171A] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#7C3AED] rounded-full"
-                    style={{ width: `${Math.min(100, (stats.daily_sent / Math.max(1, stats.daily_limit)) * 100)}%` }}
-                  />
-                </div>
-              </div>
+              <MetricCard
+                label="Daily Limit"
+                value={`${stats.daily_sent}/${stats.daily_limit}`}
+                progress={Math.min(1, stats.daily_sent / Math.max(1, stats.daily_limit))}
+                rows={[{ label: 'Cap', value: stats.daily_limit }]}
+              />
             </div>
           )}
 
           {icpPanel}
 
           {/* Leads Table */}
-          <div className="bg-[#111113] rounded-xl border border-[#1F1F23]/50 flex flex-col">
+          <div className="bg-surface rounded-xl border border-line/50 flex flex-col">
 
             {/* Filters */}
-            <div className="p-4 border-b border-[#1F1F23]/50 flex flex-wrap items-center gap-3">
+            <div className="p-4 border-b border-line/50 flex flex-wrap items-center gap-3">
               <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#71717A]" />
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-dim" />
                 <input
                   type="text"
                   placeholder="Search by name or company..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()}
-                  className="w-full bg-[#111113] border border-[#1F1F23] rounded-lg pl-9 pr-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none"
+                  className="w-full bg-surface border border-line rounded-lg pl-9 pr-3 py-2 text-sm focus:border-accent focus:outline-none"
                 />
               </div>
 
               <select
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-                className="bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2 text-sm focus:border-[#7C3AED] focus:outline-none text-[#A1A1AA] min-w-[140px]"
+                className="bg-surface border border-line rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none text-muted min-w-[140px]"
               >
                 {LEAD_STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
 
-              <div className="flex items-center gap-2 bg-[#111113] border border-[#1F1F23] rounded-lg px-3 py-2">
-                <span className="text-xs text-[#71717A]">Score</span>
+              <div className="flex items-center gap-2 bg-surface border border-line rounded-lg px-3 py-2">
+                <span className="text-xs text-dim">Score</span>
                 <input
                   type="number" placeholder="Min" value={minScore}
                   onChange={(e) => setMinScore(e.target.value)}
-                  className="w-12 bg-transparent text-sm text-[#A1A1AA] outline-none text-center"
+                  className="w-12 bg-transparent text-sm text-muted outline-none text-center"
                 />
-                <span className="text-[#52525B]">-</span>
+                <span className="text-faint">-</span>
                 <input
                   type="number" placeholder="Max" value={maxScore}
                   onChange={(e) => setMaxScore(e.target.value)}
-                  className="w-12 bg-transparent text-sm text-[#A1A1AA] outline-none text-center"
+                  className="w-12 bg-transparent text-sm text-muted outline-none text-center"
                 />
               </div>
 
               <button
                 onClick={handleApplyFilters}
-                className="bg-[#17171A] hover:bg-[#1F1F23] text-[#F4F4F5] border border-[#2A2A30] px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="bg-raised hover:bg-line text-text border border-line-strong px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
                 Apply Filters
               </button>
@@ -543,7 +534,7 @@ export default function HunterLeadsPage() {
             {/* Table */}
             <div className="flex-1 overflow-auto">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-[#0A0A0B]/50 border-b border-[#1F1F23]/50 text-xs font-semibold text-[#A1A1AA] uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
+                <thead className="bg-canvas/50 border-b border-line/50 text-xs font-semibold text-muted uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
                   <tr>
                     <th className="px-5 py-4 w-1/4">Name & Email</th>
                     <th className="px-5 py-4 w-1/5">Company</th>
@@ -553,10 +544,10 @@ export default function HunterLeadsPage() {
                     <th className="px-5 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#1F1F23]/30">
+                <tbody className="divide-y divide-line/30">
                   {pageLeads.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-5 py-16 text-center text-[#71717A]">
+                      <td colSpan={6} className="px-5 py-16 text-center text-dim">
                         <Users className="w-10 h-10 mx-auto mb-3 opacity-20" />
                         <p>No leads found matching your criteria.</p>
                       </td>
@@ -565,26 +556,26 @@ export default function HunterLeadsPage() {
                     <tr
                       key={lead.id}
                       onClick={() => setSelectedLead(lead)}
-                      className={`hover:bg-[#17171A]/40 cursor-pointer transition-colors group ${
+                      className={`hover:bg-raised/40 cursor-pointer transition-colors group ${
                         selectedLead?.id === lead.id
-                          ? 'bg-[#7C3AED]/10 border-l-2 border-[#7C3AED]'
+                          ? 'bg-accent/10 border-l-2 border-accent'
                           : 'border-l-2 border-transparent'
                       }`}
                     >
                       <td className="px-5 py-3">
                         <p className="font-medium text-white">{lead.name}</p>
-                        <p className="text-xs text-[#71717A] truncate">{lead.email || '—'}</p>
+                        <p className="text-xs text-dim truncate">{lead.email || '—'}</p>
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
-                          <Building2 className="w-3.5 h-3.5 text-[#71717A]" />
-                          <span className="text-sm text-[#A1A1AA]">{lead.company || '—'}</span>
+                          <Building2 className="w-3.5 h-3.5 text-dim" />
+                          <span className="text-sm text-muted">{lead.company || '—'}</span>
                         </div>
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-mono font-medium w-6 text-[#A1A1AA]">{lead.bos_lead_score}</span>
-                          <div className="w-12 h-1.5 bg-[#17171A] rounded-full overflow-hidden">
+                          <span className="text-sm font-mono font-medium w-6 text-muted">{lead.bos_lead_score}</span>
+                          <div className="w-12 h-1.5 bg-raised rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full ${getScoreColor(lead.bos_lead_score)}`}
                               style={{ width: `${lead.bos_lead_score}%` }}
@@ -597,9 +588,9 @@ export default function HunterLeadsPage() {
                           {lead.status.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-sm text-[#A1A1AA]">{timeAgo(lead.last_contacted_at)}</td>
+                      <td className="px-5 py-3 text-sm text-muted">{timeAgo(lead.last_contacted_at)}</td>
                       <td className="px-5 py-3 text-right">
-                        <button className="opacity-0 group-hover:opacity-100 text-[#7C3AED] hover:text-[#7C3AED] text-sm font-medium transition-all mr-2">
+                        <button className="opacity-0 group-hover:opacity-100 text-accent hover:text-accent text-sm font-medium transition-all mr-2">
                           View Details
                         </button>
                       </td>
@@ -610,7 +601,7 @@ export default function HunterLeadsPage() {
             </div>
 
             {/* Pagination */}
-            <div className="px-5 py-3 border-t border-[#1F1F23]/50 bg-[#0A0A0B]/30 flex items-center justify-between text-sm text-[#A1A1AA]">
+            <div className="px-5 py-3 border-t border-line/50 bg-canvas/30 flex items-center justify-between text-sm text-muted">
               <p>
                 Showing {totalLeads > 0 ? page * PAGE_SIZE + 1 : 0}–{Math.min((page + 1) * PAGE_SIZE, totalLeads)} of {totalLeads} leads
               </p>
@@ -618,14 +609,14 @@ export default function HunterLeadsPage() {
                 <button
                   onClick={() => setPage(Math.max(0, page - 1))}
                   disabled={page === 0}
-                  className="p-1.5 rounded bg-[#17171A] hover:bg-[#1F1F23] disabled:opacity-50 transition"
+                  className="p-1.5 rounded bg-raised hover:bg-line disabled:opacity-50 transition"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setPage(page + 1)}
                   disabled={(page + 1) * PAGE_SIZE >= totalLeads}
-                  className="p-1.5 rounded bg-[#17171A] hover:bg-[#1F1F23] disabled:opacity-50 transition"
+                  className="p-1.5 rounded bg-raised hover:bg-line disabled:opacity-50 transition"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -637,24 +628,24 @@ export default function HunterLeadsPage() {
       </div>
 
       {/* Lead Drawer */}
-      <div className={`fixed inset-y-0 pt-16 right-0 w-96 bg-[#0A0A0B] border-l border-[#1F1F23]/80  transform transition-transform duration-300 ease-out z-20 flex flex-col ${
+      <div className={`fixed inset-y-0 pt-16 right-0 w-96 bg-canvas border-l border-line/80  transform transition-transform duration-300 ease-out z-20 flex flex-col ${
         selectedLead ? 'translate-x-0' : 'translate-x-full'
       }`}>
         {selectedLead && (
           <>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1F1F23]/80 bg-[#111113]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line/80 bg-surface">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#17171A] border border-[#1F1F23] flex items-center justify-center">
-                  <User className="w-5 h-5 text-[#7C3AED]" />
+                <div className="w-10 h-10 rounded-full bg-raised border border-line flex items-center justify-center">
+                  <User className="w-5 h-5 text-accent" />
                 </div>
                 <div>
                   <h2 className="text-white font-semibold text-base leading-tight">{selectedLead.name}</h2>
-                  <p className="text-xs text-[#A1A1AA]">{selectedLead.email || 'No email on file'}</p>
+                  <p className="text-xs text-muted">{selectedLead.email || 'No email on file'}</p>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedLead(null)}
-                className="p-1.5 text-[#A1A1AA] hover:text-white hover:bg-[#1F1F23]/50 rounded-lg transition-colors"
+                className="p-1.5 text-muted hover:text-white hover:bg-line/50 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -663,7 +654,7 @@ export default function HunterLeadsPage() {
             <div className="flex-1 overflow-y-auto px-5 py-6 space-y-6">
 
               {/* Status + quick actions */}
-              <div className="flex items-center justify-between pb-4 border-b border-[#1F1F23]/50">
+              <div className="flex items-center justify-between pb-4 border-b border-line/50">
                 <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${STATUS_STYLES[selectedLead.status] ?? STATUS_STYLES.pending}`}>
                   {selectedLead.status.replace(/_/g, ' ')}
                 </span>
@@ -690,23 +681,23 @@ export default function HunterLeadsPage() {
                 <h3 className="text-sm font-semibold text-white">Lead Details</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-[#71717A] text-xs mb-1">Company</p>
-                    <div className="flex items-center gap-1.5 text-[#F4F4F5]">
-                      <Building2 className="w-4 h-4 text-[#A1A1AA]" />
+                    <p className="text-dim text-xs mb-1">Company</p>
+                    <div className="flex items-center gap-1.5 text-text">
+                      <Building2 className="w-4 h-4 text-muted" />
                       {selectedLead.company || '—'}
                     </div>
                   </div>
                   <div>
-                    <p className="text-[#71717A] text-xs mb-1">Score</p>
-                    <p className="text-[#F4F4F5] font-mono font-medium">{selectedLead.bos_lead_score}</p>
+                    <p className="text-dim text-xs mb-1">Score</p>
+                    <p className="text-text font-mono font-medium">{selectedLead.bos_lead_score}</p>
                   </div>
                   <div>
-                    <p className="text-[#71717A] text-xs mb-1">Added</p>
-                    <p className="text-[#F4F4F5]">{timeAgo(selectedLead.created_at)}</p>
+                    <p className="text-dim text-xs mb-1">Added</p>
+                    <p className="text-text">{timeAgo(selectedLead.created_at)}</p>
                   </div>
                   <div>
-                    <p className="text-[#71717A] text-xs mb-1">Last contacted</p>
-                    <p className="text-[#F4F4F5]">{timeAgo(selectedLead.last_contacted_at)}</p>
+                    <p className="text-dim text-xs mb-1">Last contacted</p>
+                    <p className="text-text">{timeAgo(selectedLead.last_contacted_at)}</p>
                   </div>
                 </div>
               </div>
@@ -714,7 +705,7 @@ export default function HunterLeadsPage() {
               {/* Enrichment */}
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-white">Enrichment Data</h3>
-                <div className="bg-[#111113]/50 border border-[#1F1F23]/50 rounded-lg p-3 text-sm text-[#A1A1AA] leading-relaxed font-mono whitespace-pre-wrap">
+                <div className="bg-surface/50 border border-line/50 rounded-lg p-3 text-sm text-muted leading-relaxed font-mono whitespace-pre-wrap">
                   {selectedLead.company_context ?? 'Not enriched yet — the enrichment agent will fill this in.'}
                 </div>
               </div>

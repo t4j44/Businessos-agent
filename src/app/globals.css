@@ -4,47 +4,75 @@
 
 /* ─────────────────────────────────────────────────────────────────────────
    Business OS design system
-   Dark, flat, high-contrast. Inspired by Linear / Vercel / Supabase.
-   Every surface colour in the app resolves back to one of these tokens —
-   change it here and it changes everywhere.
+
+   THIS FILE IS THE PALETTE. Nothing else in the product should contain a
+   colour literal. tailwind.config.ts reads these variables through
+   rgb(var(--token) / <alpha-value>), which is what keeps `bg-accent/10` and
+   `border-line/50` working while the value itself lives here.
+
+   Channels, not hex, for exactly that reason: Tailwind's alpha modifier can
+   only compose with a colour it can split. Use them as rgb(var(--accent)).
+
+   TWO DELIBERATE SHIFTS FROM THE PREVIOUS PALETTE:
+
+   1. The greys carry a faint violet bias rather than being pure neutral.
+      Pure grey reads as an unmade decision — nobody chose #71717A, it is
+      just what Tailwind ships.
+
+   2. The accent is #7C5CFF rather than the default violet-600 many AI
+      SaaS products ship with — it holds contrast better against a
+      near-black ground instead of muddying into it.
+
+   The semantic set (good / warn / crit) is separate from the accent and they
+   never stand in for each other: no success state in accent, no button or
+   link in good/warn/crit.
    ───────────────────────────────────────────────────────────────────────── */
 :root {
   /* Surfaces */
-  --bg:            #0A0A0B;  /* page canvas */
-  --surface:       #111113;  /* card surface */
-  --surface-hover: #17171A;  /* card / row hover */
-  --border:        #1F1F23;  /* every 1px border */
-  --border-strong: #2A2A30;  /* hover + focus borders */
+  --canvas:      8 7 12;        /* #08070C  page ground */
+  --surface:     16 14 22;      /* #100E16  cards, panels */
+  --raised:      23 21 31;      /* #17151F  inputs, hover states, table header */
+  --line:        38 34 51;      /* #262233  borders */
+  --line-soft:   27 24 38;      /* #1B1826  internal dividers */
+  --line-strong: 51 46 66;      /* #332E42  hover + focus borders (see note) */
 
   /* Text */
-  --text:          #F4F4F5;  /* primary */
-  --text-secondary:#A1A1AA;  /* secondary */
-  --text-muted:    #71717A;  /* muted / labels */
-  --text-faint:    #52525B;  /* section headings, disabled */
+  --text:        242 240 247;   /* #F2F0F7  primary */
+  --muted:       139 135 160;   /* #8B87A0  secondary */
+  --dim:         97 93 117;     /* #615D75  labels, eyebrows */
+  --faint:       74 70 88;      /* #4A4658  disabled, placeholders (see note) */
 
-  /* Accent — purple, professional */
-  --accent:        #7C3AED;
-  --accent-hover:  #6D28D9;
-  --accent-soft:   rgba(124, 58, 237, 0.10);
-  --accent-ring:   rgba(124, 58, 237, 0.25);
-  /* The one permitted gradient: accent CTA only */
-  --accent-gradient: linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%);
+  /* Brand */
+  --accent:        124 92 255;  /* #7C5CFF  the one brand colour */
+  --accent-hover:  107 74 230;  /* #6B4AE6 */
+  --accent-bright: 168 150 255; /* #A896FF  accent text on an accent tint */
+  --copper:        201 139 94;  /* #C98B5E  second voice — never interactive */
 
-  /* Status */
-  --running: #F59E0B;  /* amber  */
-  --success: #10B981;  /* emerald */
-  --error:   #EF4444;  /* red */
-  --idle:    #52525B;  /* never run */
+  /* Semantic — meaning only, never decoration */
+  --good: 79 191 139;           /* #4FBF8B */
+  --warn: 217 164 65;           /* #D9A441 */
+  --crit: 217 106 106;          /* #D96A6A */
 
-  --radius: 8px;
+  /* NOTE ON line-strong / faint / accent-hover / accent-bright:
+     these four are additions to the twelve-token spec. The UI already uses
+     four border weights and five text weights; collapsing them would flatten
+     hover states and disabled text into the same value as their resting
+     state, which costs more hierarchy than the extra tokens cost clarity. */
+
+  --radius: 10px;
+
+  /* One transition for everything interactive. Fast enough to feel
+     instantaneous, eased so it does not read as linear machine motion. */
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --dur:  150ms;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body {
   height: 100%;
-  background-color: var(--bg);
-  color: var(--text);
+  background-color: rgb(var(--canvas));
+  color: rgb(var(--text));
 }
 
 body {
@@ -52,21 +80,83 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Flat by design: no drop shadows anywhere in the product surface. */
-.no-shadow, .card { box-shadow: none; }
+/* ── Typography ─────────────────────────────────────────────────────────
+   Archivo carries the UI. Instrument Serif appears only on large metric
+   figures and page-level headings — never in body text or chrome, where a
+   serif at 14px just reads as a rendering bug. */
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+/* Numbers that stack in a column must not change width as they update.
+   Proportional digits shifting under a live figure is one of the strongest
+   cheap-software signals there is. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Uppercase micro-labels: small, widely tracked, never bold. */
+.eyebrow {
+  font-size: 0.66rem;
+  line-height: 1rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────────
+   The house standard: 150ms, one easing curve, four properties. Nothing
+   longer than 200ms, nothing that travels more than 2px. Applied to the
+   elements that actually respond to a pointer rather than globally, so it
+   never fights a component that is animating something else. */
+a,
+button,
+summary,
+[role='button'],
+[role='tab'],
+input,
+select,
+textarea,
+.interactive {
+  transition-property: background-color, border-color, opacity, transform;
+  transition-duration: var(--dur);
+  transition-timing-function: var(--ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  /* Kill motion properties; colour transitions still communicate hover. */
+  a, button, summary, [role='button'], [role='tab'],
+  input, select, textarea, .interactive, .glass-interactive {
+    transition-property: background-color, border-color, color, opacity, filter;
+    transition-duration: var(--dur);
+  }
+}
+
+/* Depth on a dark UI comes from a top light-catch, not a drop shadow. A dark
+   card with a drop shadow just looks like a light card painted black. */
+.lightcatch { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .045); }
 
 /* Scrollbars that match the canvas instead of punching a light hole in it. */
-* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+* { scrollbar-width: thin; scrollbar-color: rgb(var(--line-strong)) transparent; }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background-color: var(--border-strong);
+  background-color: rgb(var(--line-strong));
   border-radius: 4px;
 }
-*::-webkit-scrollbar-thumb:hover { background-color: #3F3F46; }
+*::-webkit-scrollbar-thumb:hover { background-color: rgb(var(--dim)); }
 
 /* The one gradient allowed on a background: the primary CTA. */
-.btn-accent-gradient { background-image: var(--accent-gradient); }
+.btn-accent-gradient {
+  background-image: linear-gradient(135deg, rgb(var(--accent)) 0%, rgb(var(--accent-hover)) 100%);
+}
 
 /* ── Rendered brief HTML ────────────────────────────────────────────────
    Briefs arrive as model-authored HTML, so they are styled by tag rather
@@ -82,4 +172,188 @@ body {
 .brief-content li { margin-bottom: .5rem; line-height: 1.5; }
 .brief-content .positive { color: #047857; font-weight: 500; }
 .brief-content .negative { color: #B91C1C; font-weight: 500; }
-.brief-content .metric { font-size: 1.5rem; font-weight: 700; color: #6D28D9; }
+.brief-content .metric { font-size: 1.5rem; font-weight: 700; color: #5B3FD6; }
+
+/* ── Glass surfaces ─────────────────────────────────────────────────────
+   Frosted panels for the sign-in card and the dashboard tiles.
+
+   WHY CSS AND NOT liquid-glass-js ON THE DASHBOARD: that library refracts by
+   CLONING the element you point it at into a clipped overlay and keeping the
+   clone pixel-aligned on every scroll and resize. One instance over a static
+   sign-in background is cheap. Eighteen instances over a live dashboard means
+   eighteen clones of the dashboard DOM, re-aligned on every scroll event — and
+   the library has no per-element API to attach to a card in the first place.
+   backdrop-filter gives the same read at zero cost, and it is what "frosted
+   glass" means on a card. The real lens is used where it fits: behind the
+   sign-in card, one instance. See src/components/visual/GlassLens.tsx.
+
+   saturate() is what keeps it from looking like grey plastic — glass carries
+   the colour behind it through, it does not only blur. */
+.glass {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgb(var(--raised) / .72) 0%, rgb(var(--surface) / .58) 100%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid rgb(var(--line) / .9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .055),
+    inset 0 -1px 0 rgba(0, 0, 0, .28);
+}
+
+/* The bright top edge a real bevel catches. One pixel, one gradient — this is
+   the difference between "a dark box" and "a pane of something". */
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  border-radius: inherit;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, .10) 22%,
+    rgba(255, 255, 255, .16) 50%,
+    rgba(255, 255, 255, .10) 78%,
+    transparent 100%);
+  pointer-events: none;
+}
+
+/* Text that sits directly on glass. Blur lowers effective contrast, so the
+   type gets its own slightly opaque bed rather than relying on the panel. */
+.glass-text {
+  position: relative;
+  /* liquid-glass-js mounts its decoration at levels 1 and 2 on body. */
+  z-index: 3;
+}
+
+/* A decorative lens must never intercept a form's mouse or touch input. */
+.lqg-glass:not(.lqg-draggable) { pointer-events: none; }
+
+/* Interactive glass: a card you can act on. Accent only on hover — a border
+   that is permanently lit stops meaning anything. */
+.glass-interactive {
+  transition: transform var(--dur) var(--ease),
+              box-shadow var(--dur) var(--ease),
+              border-color var(--dur) var(--ease),
+              backdrop-filter var(--dur) var(--ease);
+}
+.glass-interactive:hover {
+  transform: translateY(-2px);
+  border-color: #7C3AED;
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  backdrop-filter: blur(18px) saturate(165%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .07),
+    0 0 20px #7C3AED22;
+}
+
+/* A running agent. Steady glow, not a pulse — the card already says Running. */
+.glass-live {
+  border-color: rgb(var(--accent) / .35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .06),
+    0 0 20px #7C3AED33;
+}
+.glass-live:hover {
+  /* Running agents keep the live glow and add a stronger frost on lift. */
+  -webkit-backdrop-filter: blur(22px) saturate(175%);
+  backdrop-filter: blur(22px) saturate(175%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .08),
+    0 0 20px #7C3AED33;
+}
+
+/* ── Micro-interactions ─────────────────────────────────────────────────
+   The house transition (150ms, one curve) is declared further up on every
+   interactive element. These add the hover and active character on top. */
+button:not(:disabled):hover,
+[role='button']:not([aria-disabled='true']):hover {
+  filter: brightness(1.1);
+}
+button:not(:disabled):active,
+[role='button']:not([aria-disabled='true']):active {
+  transform: scale(.98);
+}
+
+/* Accent-filled controls get a glow rather than a shadow — a drop shadow under
+   a saturated button on a near-black ground reads as smudge. */
+.btn-accent-gradient:hover,
+button.bg-accent:not(:disabled):hover {
+  box-shadow: 0 0 0 1px #7C3AED55, 0 6px 18px -8px #7C3AED88;
+}
+
+/* Fields: the focus ring is the only place the accent appears unprompted. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  border-color: #7C3AED;
+  box-shadow: 0 0 0 2px #7C3AED33;
+}
+
+/* Product cards that opt into lift via .card-lift or the Card hover prop. */
+.card-lift {
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, .65);
+}
+
+/* Reduced motion: colour still moves, nothing else does. A hover that only
+   changes hue still tells you the thing is interactive. */
+@media (prefers-reduced-motion: reduce) {
+  .glass-interactive,
+  .card-lift {
+    transition-property: background-color, border-color, color, opacity, filter;
+  }
+  .glass-interactive:hover,
+  .card-lift:hover {
+    transform: none;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .07),
+      0 0 0 1px #7C3AED55;
+  }
+  .glass-live {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .06),
+      0 0 0 1px #7C3AED55;
+  }
+  button:not(:disabled):active,
+  [role='button']:not([aria-disabled='true']):active {
+    transform: none;
+  }
+}
+
+/* ── Type roles ─────────────────────────────────────────────────────────
+   Three jobs, three treatments. `.eyebrow` (declared above) is the label role
+   at 0.66rem / 0.14em; `.label-caps` is its 0.05em sibling for nav and agent
+   names, where the wider tracking of an eyebrow reads as shouting. */
+.label-caps {
+  font-family: var(--font-archivo), Archivo, ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  font-size: .65rem;
+  line-height: 1rem;
+  /* --muted, not --dim. At .65rem this is small text and needs 4.5:1; over the
+     glass panel --dim measures 2.97:1 and --muted 5.41:1. The label being
+     quiet is a design choice, being unreadable is not. */
+  color: rgb(var(--muted));
+}
+
+/* Every figure in the product. `.tabular` (above) carries the same settings for
+   one-off numbers inside prose. */
+.numeric,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Display headings. The serif is reserved for h1/h2 and metric figures — it is
+   opted into with .font-display, never applied to every heading, because an
+   h3 label set in a serif at 14px reads as a rendering fault. */
+.font-display {
+  letter-spacing: -.02em;
+  color: rgb(var(--text));
+}

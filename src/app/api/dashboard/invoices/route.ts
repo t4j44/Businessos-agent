@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 // The chase sequence has 5 steps, but the funnel presents Sent → 1..4 → Paid,
 // so step 5 (final notice) is folded into the "Step 4 Call" stage.
 export const STAGES = [
+  { key: 'draft', label: 'Draft — not sent' },
   { key: 'sent', label: 'Sent' },
   { key: 'step1', label: 'Step 1 Reminder' },
   { key: 'step2', label: 'Step 2 SMS' },
@@ -16,6 +16,7 @@ export const STAGES = [
 ] as const;
 
 function stageOf(inv: any): string {
+  if (['draft', 'cancelled', 'void', 'paused'].includes(inv.status)) return inv.status;
   if (inv.status === 'paid') return 'paid';
   const step = Number(inv.chase_step) || 0;
   if (step >= 4) return 'step4';
@@ -63,7 +64,7 @@ export async function GET(req: Request) {
     // Most overdue first.
     invoices.sort((a: any, b: any) => b.days_overdue - a.days_overdue);
 
-    const unpaid = invoices.filter((i: any) => !i.is_paid);
+    const unpaid = invoices.filter((i: any) => ['sent', 'overdue'].includes(i.status));
     const paid = invoices.filter((i: any) => i.is_paid);
 
     const sum = (list: any[]) => list.reduce((t, i) => t + i.amount_cents, 0);

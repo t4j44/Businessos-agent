@@ -42,9 +42,12 @@ export async function callAI(params: {
   system: string,
   user: string,
   maxTokens?: number,
-}): Promise<{ text: string, inputTokens: number, outputTokens: number, cost: number }> {
+}): Promise<{ text: string, inputTokens: number, outputTokens: number, cost: number, usageKnown: boolean, costSource: string }> {
+  if (!process.env.OPENROUTER_API_KEY) throw new Error('AI provider is not configured.');
+  if (!Number.isInteger(params.maxTokens ?? 1000) || (params.maxTokens ?? 1000) < 1 || (params.maxTokens ?? 1000) > 16000) throw new Error('Invalid AI output limit.');
   const response = await fetch(OPENROUTER_URL, {
     method: 'POST',
+    signal: AbortSignal.timeout(45_000),
     headers: {
       'Authorization': 'Bearer ' + process.env.OPENROUTER_API_KEY,
       'Content-Type': 'application/json',
@@ -59,25 +62,29 @@ export async function callAI(params: {
     }),
   })
   if (response.status === 429) {
-    throw new Error('Free model rate limited — try again or switch ACTIVE_MODEL')
+    throw new Error('AI provider rate limit reached. Please try again later.')
   }
+  if (!response.ok) throw new Error(`AI provider returned HTTP ${response.status}.`);
   const data = await response.json()
-  if (!data.choices) {
-    throw new Error('OpenRouter error: ' + JSON.stringify(data))
-  }
-  const text = data.choices[0].message.content
-  const inputTokens = data.usage?.prompt_tokens || 0
-  const outputTokens = data.usage?.completion_tokens || 0
+  const text = data?.choices?.[0]?.message?.content
+  if (typeof text !== 'string' || !text.trim()) throw new Error('AI provider returned no usable text.');
+  const usageKnown = Number.isSafeInteger(data.usage?.prompt_tokens) && data.usage.prompt_tokens >= 0
+    && Number.isSafeInteger(data.usage?.completion_tokens) && data.usage.completion_tokens >= 0;
+  const inputTokens = usageKnown ? data.usage.prompt_tokens : 0
+  const outputTokens = usageKnown ? data.usage.completion_tokens : 0
   const c = COSTS[params.model] || { input: 0, output: 0 }
-  const cost = (inputTokens * c.input) + (outputTokens * c.output)
-  return { text, inputTokens, outputTokens, cost }
+  const providerCost = data.usage?.cost;
+  const hasProviderCost = typeof providerCost === 'number' && Number.isFinite(providerCost) && providerCost >= 0;
+  const cost = hasProviderCost ? providerCost : (inputTokens * c.input) + (outputTokens * c.output)
+  const costSource = hasProviderCost ? 'provider' : COSTS[params.model] && usageKnown ? 'estimate' : 'unknown';
+  return { text, inputTokens, outputTokens, cost, usageKnown, costSource }
 }
 
 export function parseJSON(text: string): any {
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start === -1 || end === -1 || end < start) {
-    throw new Error('No JSON object found in response: ' + text)
+    throw new Error('AI response did not contain a JSON object.')
   }
   let cleaned = text.slice(start, end + 1)
   // Free models often emit Unicode smart quotes instead of straight quotes,

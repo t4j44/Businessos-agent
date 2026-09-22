@@ -1,6 +1,6 @@
 import { createRouteClient } from '@/lib/supabase-route';
 import { NextResponse } from 'next/server';
-import { getStripe, getOrCreateStripeCustomer, PLAN_TIERS } from '@/lib/stripe';
+import { getStripe, getOrCreateStripeCustomer, PLAN_TIERS, billingOrigin } from '@/lib/stripe';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
 export async function POST(req: Request) {
@@ -37,19 +37,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid plan tier' }, { status: 400 });
     }
 
+    if (typeof pilot !== 'boolean' && pilot !== undefined) return NextResponse.json({ error: 'Invalid pilot option.' }, { status: 400 });
+    if (billing_period !== undefined && !['monthly', 'annual'].includes(billing_period)) return NextResponse.json({ error: 'Invalid billing period.' }, { status: 400 });
     const priceId = pilot ? tierObj.pilot : (billing_period === 'annual' ? tierObj.annual : tierObj.monthly);
 
-    // Provide mock implementations when running locally with missing Env checks gracefully
-    let customerId = 'mock_customer';
-    if (process.env.STRIPE_SECRET_KEY) {
-      customerId = await getOrCreateStripeCustomer(user.email!, client.id);
+    if (!process.env.STRIPE_SECRET_KEY || !priceId || !process.env.STRIPE_WEBHOOK_SECRET) {
+      return NextResponse.json({ error: 'This plan is not configured for checkout yet.' }, { status: 503 });
     }
-
-    // Creating Checkout Session
-    if (!process.env.STRIPE_SECRET_KEY) {
-      return NextResponse.json({ checkout_url: '/dashboard/billing?mock=success' });
-    }
-
+    const customerId = await getOrCreateStripeCustomer(user.email!, client.id);
+    const origin = billingOrigin();
     const checkoutSession = await getStripe().checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
@@ -60,8 +56,9 @@ export async function POST(req: Request) {
         },
       ],
       mode: 'subscription',
-      success_url: `${req.headers.get('origin')}/dashboard/billing?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.headers.get('origin')}/pricing`,
+      success_url: `${origin}/dashboard/billing?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/pricing`,
+      subscription_data: { metadata: { client_id: client.id, plan_tier } },
       metadata: {
         client_id: client.id,
         plan_tier,

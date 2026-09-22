@@ -4,21 +4,27 @@
 // Crawl4AI is skipped entirely when CRAWL4AI_URL is unset, so with no config
 // this behaves exactly like the old Jina-only reader.
 
+import { parsePublicUrl, resolvePublicUrl } from './safe-fetch'
+
 export function normalizeUrl(url: string): string {
+  if (typeof url !== 'string' || url.length > 2048) throw new Error('Enter a valid public website URL.')
   let normalized = url.trim()
   if (!normalized.startsWith('http://') && 
       !normalized.startsWith('https://')) {
     normalized = 'https://' + normalized
   }
-  return normalized.replace(/\/$/, '')
+  return parsePublicUrl(normalized).href.replace(/\/$/, '')
 }
 
 export async function readWebsite(
   url: string,
   maxChars: number = 6000
 ): Promise<string> {
+  url = (await resolvePublicUrl(normalizeUrl(url))).url.href
   // Try Crawl4AI first (best quality, handles JS sites)
-  if (process.env.CRAWL4AI_URL) {
+  // A browser worker also follows subresources/redirects. Only enable it after
+  // its network policy blocks private ranges; seed validation alone is not enough.
+  if (process.env.CRAWL4AI_URL && process.env.CRAWL4AI_PRIVATE_NETWORK_BLOCKED === 'true') {
     try {
       const res = await fetch(process.env.CRAWL4AI_URL + '/crawl', {
         method: 'POST',

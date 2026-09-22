@@ -5,6 +5,8 @@
 // brand-scout, because Crawl4AI/Jina both return prose — the colours, fonts and
 // image tags only survive in the raw HTML.
 
+import { fetchPublicText } from './safe-fetch'
+
 const HTML_TIMEOUT_MS = 15000
 const CSS_TIMEOUT_MS = 8000
 const MAX_HTML_BYTES = 600_000
@@ -43,16 +45,7 @@ export const EMPTY_VISUAL_BRAND: VisualBrand = {
 // ── Fetch helpers ────────────────────────────────────────────────────────────
 
 async function fetchText(url: string, timeoutMs: number, maxBytes: number): Promise<string> {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': UA, Accept: 'text/html,text/css,*/*' },
-    signal: AbortSignal.timeout(timeoutMs),
-    redirect: 'follow',
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const text = await res.text()
-  // Marketing pages can be megabytes of inlined JSON; the palette is near the
-  // top and the rest only slows the regex passes down.
-  return text.slice(0, maxBytes)
+  return fetchPublicText(url, { timeoutMs, maxBytes })
 }
 
 /** Raw HTML of the page. Throws so the caller can log why extraction was empty. */

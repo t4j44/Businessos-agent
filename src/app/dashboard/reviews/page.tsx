@@ -7,19 +7,21 @@ import {
 } from 'recharts';
 import {
   Star, Check, Pencil, RefreshCw, ChevronDown, ChevronUp, ArrowLeft,
-  TrendingUp, AlertTriangle, MessageSquare, Loader2,
+  MessageSquare,
 } from 'lucide-react';
 import * as tokens from '@/lib/design-tokens';
 import { ResponseCard } from '@/components/dashboard/ResponseCard';
+import { MetricCard } from '@/components/ui/MetricCard';
+import { Pending, SkeletonCard } from '@/components/ui/Skeleton';
 
 type Sentiment = 'praise' | 'neutral' | 'complaint';
 
 const PLATFORMS = ['Google', 'Yelp', 'G2', 'Capterra'];
 
 const SENTIMENT_COLOR: Record<Sentiment, string> = {
-  praise: '#10B981',
-  neutral: '#71717A',
-  complaint: '#EF4444',
+  praise: '#4FBF8B',
+  neutral: '#615D75',
+  complaint: '#D96A6A',
 };
 
 const SENTIMENT_LABEL: Record<Sentiment, string> = {
@@ -35,7 +37,7 @@ function Stars({ rating }: { rating: number }) {
         <Star
           key={i}
           className={`h-3.5 w-3.5 ${
-            i < Math.round(rating) ? 'fill-[#F59E0B] text-[#F59E0B]' : 'text-[#3F3F46]'
+            i < Math.round(rating) ? 'fill-warn text-warn' : 'text-line-strong'
           }`}
         />
       ))}
@@ -43,9 +45,11 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function Card({ children, className = '', elevated = true }: { children: React.ReactNode; className?: string; elevated?: boolean }) {
   return (
-    <div className={`rounded-xl border border-[#1F1F23] bg-[#111113] ${className}`}>{children}</div>
+    <div className={`${elevated ? 'rounded-lg border border-line bg-surface shadow-lightcatch' : 'rounded-lg bg-surface/60'} ${className}`}>
+      {children}
+    </div>
   );
 }
 
@@ -54,12 +58,12 @@ function TrendTooltip({ active, payload, label }: any) {
   const row = payload[0]?.payload;
   if (!row) return null;
   return (
-    <div className="rounded-lg border border-[#1F1F23] bg-[#17171A] px-3 py-2">
-      <p className="text-xs font-medium text-[#F4F4F5]">
+    <div className="rounded-lg border border-line bg-raised px-3 py-2">
+      <p className="text-xs font-medium text-text">
         {label}: {row.your_rating ?? '—'} stars, {row.review_count} review
         {row.review_count === 1 ? '' : 's'}
       </p>
-      <p className="mt-0.5 text-[11px] text-[#71717A]">
+      <p className="mt-0.5 text-[11px] text-dim">
         Industry average: {row.industry_average}
       </p>
     </div>
@@ -142,6 +146,7 @@ export default function ReviewsPage() {
             ? {
                 ...r,
                 responded: json.review?.responded ?? r.responded,
+                response_method: json.review?.response_method ?? r.response_method,
                 response_text: json.review?.response_text ?? r.response_text,
               }
             : r,
@@ -189,15 +194,15 @@ export default function ReviewsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] p-6 space-y-5">
+      <div className="min-h-screen space-y-5 bg-canvas p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-32 animate-pulse rounded-xl border border-[#1F1F23] bg-[#111113]" />
+            <SkeletonCard key={i} rows={1} />
           ))}
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <div className="h-80 animate-pulse rounded-xl border border-[#1F1F23] bg-[#111113] lg:col-span-7" />
-          <div className="h-80 animate-pulse rounded-xl border border-[#1F1F23] bg-[#111113] lg:col-span-5" />
+          <SkeletonCard className="lg:col-span-7 min-h-[20rem]" />
+          <SkeletonCard className="lg:col-span-5 min-h-[20rem]" />
         </div>
       </div>
     );
@@ -205,10 +210,10 @@ export default function ReviewsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] p-6">
-        <Card>
+      <div className="min-h-screen bg-canvas p-6">
+        <Card elevated={false}>
           <div className="p-6">
-            <p className="text-sm text-[#EF4444]">Couldn&apos;t load reviews — {error}</p>
+            <p className="text-sm text-crit">Couldn&apos;t load reviews — {error}</p>
           </div>
         </Card>
       </div>
@@ -220,17 +225,17 @@ export default function ReviewsPage() {
   // ── No reviews collected yet ─────────────────────────────────────────────
   if (data.is_empty) {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] p-6">
+      <div className="min-h-screen bg-canvas p-6">
         <Card>
           <div className="flex flex-col items-center gap-4 px-6 py-20 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#7C3AED]/15">
-              <Star className="h-7 w-7 text-[#7C3AED]" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent/15">
+              <Star className="h-7 w-7 text-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-[#F4F4F5]">
+              <h2 className="text-lg font-semibold text-text">
                 No reviews yet. Your agents will monitor and respond automatically.
               </h2>
-              <p className="mx-auto mt-2 max-w-md text-sm text-[#71717A]">
+              <p className="mx-auto mt-2 max-w-md text-sm text-dim">
                 As reviews come in across Google, Yelp, G2 and Capterra, they land here
                 with sentiment, themes, and a drafted reply.
               </p>
@@ -242,62 +247,50 @@ export default function ReviewsPage() {
   }
 
   return (
-    <div className="min-h-screen space-y-5 bg-[#0A0A0B] p-6">
+    <div className="min-h-screen space-y-5 bg-canvas p-6">
 
       {/* ── TOP ROW ─────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="p-5">
-          <p className={tokens.type.metricLabel}>Average Rating</p>
-          <p className={`mt-3 ${tokens.type.metric} text-[#F4F4F5]`}>{s.avg_rating}</p>
-          <div className="mt-2 flex items-center gap-2">
-            <Stars rating={s.avg_rating} />
-            <span className="text-xs text-[#71717A]">{s.total_reviews} reviews</span>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <p className={tokens.type.metricLabel}>Response Rate</p>
-          <p className={`mt-3 ${tokens.type.metric} ${s.response_rate >= 80 ? 'text-[#10B981]' : 'text-[#F59E0B]'}`}>
-            {s.response_rate}%
-          </p>
-          <p className="mt-2 text-xs text-[#71717A]">
-            {s.responded} of {s.total_reviews} answered
-          </p>
-        </Card>
-
-        <Card className="p-5">
-          <p className={tokens.type.metricLabel}>Top Complaint</p>
-          <p className="mt-3 flex items-start gap-1.5 text-sm font-semibold leading-snug text-[#EF4444]">
-            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span className="line-clamp-2">{s.top_complaint || 'No complaints yet'}</span>
-          </p>
-          <p className="mt-2 text-xs text-[#71717A]">Most common reason for low scores</p>
-        </Card>
-
-        <Card className="p-5">
-          <p className={tokens.type.metricLabel}>Predicted Improvement</p>
-          <p className={`mt-3 ${tokens.type.metric} text-[#10B981]`}>+{s.predicted_improvement}</p>
-          <p className="mt-2 flex items-center gap-1.5 text-xs text-[#71717A]">
-            <TrendingUp className="h-3.5 w-3.5 flex-shrink-0 text-[#10B981]" />
-            stars if the top complaint is fixed
-          </p>
-        </Card>
+        <MetricCard
+          label="Average Rating"
+          value={s.avg_rating}
+          rows={[{ label: 'Reviews', value: s.total_reviews }]}
+        />
+        <MetricCard
+          label="Response Rate"
+          value={`${s.response_rate}%`}
+          state={s.response_rate >= 80 ? 'good' : 'warn'}
+          delta={`${s.responded}/${s.total_reviews}`}
+          rows={[{ label: 'Answered', value: `${s.responded} of ${s.total_reviews}` }]}
+        />
+        <MetricCard
+          label="Top Complaint"
+          value={s.top_complaint ? String(s.top_complaint).slice(0, 28) : '—'}
+          state={s.top_complaint ? 'crit' : undefined}
+          rows={[{ label: 'Source', value: 'Low scores' }]}
+        />
+        <MetricCard
+          label="Predicted Improvement"
+          value={`+${s.predicted_improvement}`}
+          state="good"
+          rows={[{ label: 'If fixed', value: 'Top complaint' }]}
+        />
       </div>
 
       {/* ── MAIN SPLIT ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
 
         {/* LEFT 55% — trend, or sentiment drill-down */}
-        <Card className="lg:col-span-7">
+        <Card elevated={false} className="lg:col-span-7">
           {!sentimentFilter ? (
             <>
-              <div className="border-b border-[#1F1F23] px-5 py-4">
+              <div className="border-b border-line px-5 py-4">
                 <h2 className={tokens.type.cardTitle}>Sentiment Over Time</h2>
-                <p className="mt-0.5 text-xs text-[#71717A]">
+                <p className="mt-0.5 text-xs text-dim">
                   Your rating vs industry average, last 12 weeks
                 </p>
                 {!data.trend_has_history && (
-                  <p className="mt-2 inline-block rounded-md border border-[#1F1F23] bg-[#17171A] px-2 py-1 text-[11px] font-medium text-[#A1A1AA]">
+                  <p className="mt-2 inline-block rounded-md border border-line bg-raised px-2 py-1 text-[11px] font-medium text-muted">
                     Not enough history yet — the trend fills in as reviews arrive
                   </p>
                 )}
@@ -306,44 +299,44 @@ export default function ReviewsPage() {
                 <div style={{ width: '100%', height: 268 }}>
                   <ResponsiveContainer>
                     <LineChart data={trendData} margin={{ top: 8, right: 12, bottom: 4, left: -18 }}>
-                      <CartesianGrid stroke="#1F1F23" strokeDasharray="3 3" vertical={false} />
+                      <CartesianGrid stroke={tokens.colors.bg.border} strokeDasharray="3 3" vertical={false} />
                       <XAxis
                         dataKey="week" tickLine={false} axisLine={false}
-                        tick={{ fill: '#71717A', fontSize: 11 }} interval="preserveStartEnd"
+                        tick={{ fill: tokens.colors.text.muted, fontSize: 11 }} interval="preserveStartEnd"
                       />
                       <YAxis
                         domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tickLine={false} axisLine={false}
-                        tick={{ fill: '#71717A', fontSize: 11 }}
+                        tick={{ fill: tokens.colors.text.muted, fontSize: 11 }}
                       />
-                      <Tooltip content={<TrendTooltip />} cursor={{ stroke: '#3F3F46' }} />
+                      <Tooltip content={<TrendTooltip />} cursor={{ stroke: tokens.colors.bg.borderStrong }} />
                       <Line
                         type="monotone" dataKey="industry_average" name="Industry Average"
-                        stroke="#71717A" strokeWidth={2} strokeDasharray="4 4" dot={false}
+                        stroke={tokens.colors.text.muted} strokeWidth={2} strokeDasharray="4 4" dot={false}
                         isAnimationActive={false}
                       />
                       <Line
                         type="monotone" dataKey="your_rating" name="Your Rating"
-                        stroke="#10B981" strokeWidth={2.5}
-                        dot={{ r: 3, fill: '#10B981', strokeWidth: 0 }}
+                        stroke={tokens.colors.success} strokeWidth={2.5}
+                        dot={{ r: 3, fill: tokens.colors.success, strokeWidth: 0 }}
                         activeDot={{ r: 5 }} connectNulls
                         isAnimationActive={false}
                       />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="mt-3 flex items-center gap-4 border-t border-[#1F1F23] pt-3">
-                  <span className="flex items-center gap-1.5 text-xs text-[#A1A1AA]">
-                    <span className="h-0.5 w-4 rounded bg-[#10B981]" /> Your Rating
+                <div className="mt-3 flex items-center gap-4 border-t border-line pt-3">
+                  <span className="flex items-center gap-1.5 text-xs text-muted">
+                    <span className="h-0.5 w-4 rounded bg-good" /> Your Rating
                   </span>
-                  <span className="flex items-center gap-1.5 text-xs text-[#A1A1AA]">
-                    <span className="h-0.5 w-4 rounded bg-[#71717A]" /> Industry Average
+                  <span className="flex items-center gap-1.5 text-xs text-muted">
+                    <span className="h-0.5 w-4 rounded bg-dim" /> Industry Average
                   </span>
                 </div>
               </div>
             </>
           ) : (
             <>
-              <div className="flex items-center justify-between border-b border-[#1F1F23] px-5 py-4">
+              <div className="flex items-center justify-between border-b border-line px-5 py-4">
                 <div className="flex items-center gap-2.5">
                   <span
                     className="h-2.5 w-2.5 rounded-full"
@@ -355,20 +348,20 @@ export default function ReviewsPage() {
                 </div>
                 <button
                   onClick={() => setSentimentFilter(null)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#1F1F23] px-2.5 py-1.5 text-xs font-medium text-[#A1A1AA] transition-colors hover:bg-[#17171A]"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-raised"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" /> Back to trend
                 </button>
               </div>
               <div className="max-h-[330px] space-y-3 overflow-y-auto p-5">
                 {sentimentReviews.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-[#71717A]">No reviews in this group.</p>
+                  <p className="py-8 text-center text-sm text-dim">No reviews in this group.</p>
                 ) : (
                   sentimentReviews.map((r) => (
-                    <div key={r.id} className="rounded-lg border border-[#1F1F23] bg-[#17171A] p-4">
+                    <div key={r.id} className="rounded-lg border border-line bg-raised p-4">
                       <div className="flex items-center gap-2">
                         <Stars rating={r.star_rating} />
-                        <span className="text-xs text-[#71717A]">{r.platform}</span>
+                        <span className="text-xs text-dim">{r.platform}</span>
                       </div>
                       <p className={`mt-2 ${tokens.type.body}`}>{r.review_text}</p>
                     </div>
@@ -380,10 +373,10 @@ export default function ReviewsPage() {
         </Card>
 
         {/* RIGHT 45% — donut */}
-        <Card className="lg:col-span-5">
-          <div className="border-b border-[#1F1F23] px-5 py-4">
+        <Card elevated={false} className="lg:col-span-5">
+          <div className="border-b border-line px-5 py-4">
             <h2 className={tokens.type.cardTitle}>What customers say</h2>
-            <p className="mt-0.5 text-xs text-[#71717A]">Click a segment to see those reviews</p>
+            <p className="mt-0.5 text-xs text-dim">Click a segment to see those reviews</p>
           </div>
           <div className="p-5">
             <div className="relative" style={{ width: '100%', height: 220 }}>
@@ -411,12 +404,12 @@ export default function ReviewsPage() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold tracking-tight text-[#F4F4F5]">{s.avg_rating}</span>
-                <span className="text-[11px] font-medium text-[#71717A]">overall</span>
+                <span className="font-display text-figure tabular text-text">{s.avg_rating}</span>
+                <span className="text-[11px] font-medium text-dim">overall</span>
               </div>
             </div>
 
-            <div className="mt-4 space-y-2 border-t border-[#1F1F23] pt-4">
+            <div className="mt-4 space-y-2 border-t border-line pt-4">
               {(['praise', 'neutral', 'complaint'] as Sentiment[]).map((key) => {
                 const b = data.sentiment_breakdown;
                 const value = b[key];
@@ -426,17 +419,17 @@ export default function ReviewsPage() {
                     onClick={() => setSentimentFilter(value > 0 ? key : null)}
                     disabled={value === 0}
                     className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors ${
-                      value > 0 ? 'hover:bg-[#17171A]' : 'opacity-40'
-                    } ${sentimentFilter === key ? 'bg-[#17171A]' : ''}`}
+                      value > 0 ? 'hover:bg-raised' : 'opacity-40'
+                    } ${sentimentFilter === key ? 'bg-raised' : ''}`}
                   >
                     <span className="flex items-center gap-2">
                       <span
                         className="h-2.5 w-2.5 rounded-full"
                         style={{ backgroundColor: SENTIMENT_COLOR[key] }}
                       />
-                      <span className="text-sm text-[#A1A1AA]">{SENTIMENT_LABEL[key]}</span>
+                      <span className="text-sm text-muted">{SENTIMENT_LABEL[key]}</span>
                     </span>
-                    <span className="text-sm font-medium tabular-nums text-[#F4F4F5]">
+                    <span className="text-sm font-medium tabular-nums text-text">
                       {b[`${key}_pct`]}%
                     </span>
                   </button>
@@ -451,13 +444,13 @@ export default function ReviewsPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
 
         <Card className="lg:col-span-8">
-          <div className="border-b border-[#1F1F23] px-5 pt-4">
+          <div className="border-b border-line px-5 pt-4">
             <div className="flex items-center justify-between">
               <h2 className={tokens.type.cardTitle}>Review Queue</h2>
               {themeFilter && (
                 <button
                   onClick={() => setThemeFilter(null)}
-                  className="rounded-full border border-[#7C3AED]/30 bg-[#7C3AED]/10 px-2.5 py-1 text-[11px] font-medium text-[#7C3AED]"
+                  className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent"
                 >
                   {themeFilter} ✕
                 </button>
@@ -473,11 +466,11 @@ export default function ReviewsPage() {
                     onClick={() => setPlatformTab(p)}
                     className={`-mb-px whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-medium transition-colors ${
                       active
-                        ? 'border-[#7C3AED] text-[#F4F4F5]'
-                        : 'border-transparent text-[#71717A] hover:text-[#A1A1AA]'
+                        ? 'border-accent text-text'
+                        : 'border-transparent text-dim hover:text-muted'
                     }`}
                   >
-                    {p} <span className="ml-1 text-xs text-[#52525B]">{count}</span>
+                    {p} <span className="ml-1 text-xs text-faint">{count}</span>
                   </button>
                 );
               })}
@@ -485,12 +478,12 @@ export default function ReviewsPage() {
           </div>
 
           <div className="space-y-3 p-5">
-            {actionError && <p className="text-xs text-[#EF4444]">{actionError}</p>}
+            {actionError && <p className="text-xs text-crit">{actionError}</p>}
 
             {queueReviews.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-12 text-center">
-                <MessageSquare className="h-6 w-6 text-[#3F3F46]" />
-                <p className="text-sm text-[#71717A]">
+                <MessageSquare className="h-6 w-6 text-line-strong" />
+                <p className="text-sm text-dim">
                   No {platformTab} reviews{themeFilter ? ' with this theme' : ''} yet.
                 </p>
               </div>
@@ -499,15 +492,15 @@ export default function ReviewsPage() {
                 const isOpen = expanded === r.id;
                 const isBusy = busyId === r.id;
                 return (
-                  <div key={r.id} className="rounded-lg border border-[#1F1F23] bg-[#17171A]">
+                  <div key={r.id} className="rounded-lg border border-line bg-raised">
                     <div className="p-4">
                       <div className="flex items-center gap-2.5">
-                        <span className="rounded-md border border-[#1F1F23] bg-[#111113] px-2 py-0.5 text-[11px] font-medium text-[#A1A1AA]">
+                        <span className="rounded-md border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-muted">
                           {r.platform}
                         </span>
                         <Stars rating={r.star_rating} />
                         {r.responded && (
-                          <span className="ml-auto rounded-full border border-[#10B981]/20 bg-[#10B981]/10 px-2 py-0.5 text-[11px] font-medium text-[#10B981]">
+                          <span className="ml-auto rounded-full border border-good/20 bg-good/10 px-2 py-0.5 text-[11px] font-medium text-good">
                             Responded
                           </span>
                         )}
@@ -516,7 +509,7 @@ export default function ReviewsPage() {
 
                       <button
                         onClick={() => setExpanded(isOpen ? null : r.id)}
-                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#7C3AED] transition-colors hover:text-[#A78BFA]"
+                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-accent transition-colors hover:text-accent-bright"
                       >
                         {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                         {isOpen ? 'Hide' : 'View'} AI-drafted response
@@ -524,13 +517,13 @@ export default function ReviewsPage() {
                     </div>
 
                     {isOpen && (
-                      <div className="border-t border-[#1F1F23] p-4">
+                      <div className="border-t border-line p-4">
                         {editingId === r.id ? (
                           <textarea
                             value={editText}
                             onChange={(e) => setEditText(e.target.value)}
                             rows={5}
-                            className="w-full resize-none rounded-lg border border-[#1F1F23] bg-[#111113] px-3 py-2.5 text-sm text-[#F4F4F5] focus:border-[#7C3AED] focus:outline-none"
+                            className="w-full resize-none rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-text focus:border-accent focus:outline-none"
                           />
                         ) : (
                           <ResponseCard text={r.response_text} />
@@ -545,14 +538,14 @@ export default function ReviewsPage() {
                                   setEditingId(null);
                                 }}
                                 disabled={isBusy}
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#10B981] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#059669] disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-good px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-good disabled:opacity-50"
                               >
-                                {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                {isBusy ? <Pending /> : <Check className="h-3.5 w-3.5" />}
                                 Save
                               </button>
                               <button
                                 onClick={() => setEditingId(null)}
-                                className="rounded-lg border border-[#1F1F23] px-3 py-2 text-xs font-medium text-[#A1A1AA] transition-colors hover:bg-[#1F1F23]"
+                                className="rounded-lg border border-line px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-line"
                               >
                                 Cancel
                               </button>
@@ -561,27 +554,27 @@ export default function ReviewsPage() {
                             <>
                               <button
                                 onClick={() => patchReview(r.id, 'approve')}
-                                disabled={isBusy}
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#10B981] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#059669] disabled:opacity-50"
+                                disabled={isBusy || r.response_method === 'approved_draft'}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-good px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-good disabled:opacity-50"
                               >
-                                {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                                Approve
+                                {isBusy ? <Pending /> : <Check className="h-3.5 w-3.5" />}
+                                {r.response_method === 'approved_draft' ? 'Approved — publish on review platform' : 'Approve draft'}
                               </button>
                               <button
                                 onClick={() => {
                                   setEditingId(r.id);
                                   setEditText(r.response_text || '');
                                 }}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-[#1F1F23] px-3 py-2 text-xs font-medium text-[#A1A1AA] transition-colors hover:bg-[#1F1F23]"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-line"
                               >
                                 <Pencil className="h-3.5 w-3.5" /> Edit
                               </button>
                               <button
                                 onClick={() => regenerate(r)}
                                 disabled={isBusy}
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#7C3AED] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#6D28D9] disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
                               >
-                                {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                                {isBusy ? <Pending /> : <RefreshCw className="h-3.5 w-3.5" />}
                                 Regenerate
                               </button>
                             </>
@@ -597,14 +590,14 @@ export default function ReviewsPage() {
         </Card>
 
         {/* Complaint Intelligence */}
-        <Card className="h-fit lg:col-span-4">
-          <div className="border-b border-[#1F1F23] px-5 py-4">
+        <Card elevated={false} className="h-fit lg:col-span-4">
+          <div className="border-b border-line px-5 py-4">
             <h2 className={tokens.type.cardTitle}>Complaint Intelligence</h2>
-            <p className="mt-0.5 text-xs text-[#71717A]">Click a theme to filter the queue</p>
+            <p className="mt-0.5 text-xs text-dim">Click a theme to filter the queue</p>
           </div>
           <div className="p-5">
             {(!data.complaint_themes || data.complaint_themes.length === 0) ? (
-              <p className="py-8 text-center text-sm text-[#71717A]">No complaint themes found.</p>
+              <p className="py-8 text-center text-sm text-dim">No complaint themes found.</p>
             ) : (
               <div className="space-y-2">
                 {data.complaint_themes.map((t: any, i: number) => {
@@ -616,22 +609,22 @@ export default function ReviewsPage() {
                       onClick={() => setThemeFilter(active ? null : t.theme)}
                       className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
                         active
-                          ? 'border-[#7C3AED]/40 bg-[#7C3AED]/10'
-                          : 'border-[#1F1F23] bg-[#17171A] hover:border-[#3F3F46]'
+                          ? 'border-accent/40 bg-accent/10'
+                          : 'border-line bg-raised hover:border-line-strong'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <span className="flex min-w-0 items-start gap-2">
-                          <span className="mt-0.5 text-[11px] font-bold text-[#52525B]">#{i + 1}</span>
-                          <span className="line-clamp-2 text-xs text-[#A1A1AA]">{t.theme}</span>
+                          <span className="mt-0.5 text-[11px] font-bold text-faint">#{i + 1}</span>
+                          <span className="line-clamp-2 text-xs text-muted">{t.theme}</span>
                         </span>
-                        <span className="flex-shrink-0 text-xs font-bold tabular-nums text-[#EF4444]">
+                        <span className="flex-shrink-0 text-xs font-bold tabular-nums text-crit">
                           {t.count}
                         </span>
                       </div>
-                      <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#1F1F23]">
+                      <div className="mt-2 h-1 overflow-hidden rounded-full bg-line">
                         <div
-                          className="h-full rounded-full bg-[#EF4444]"
+                          className="h-full rounded-full bg-crit"
                           style={{ width: `${(t.count / max) * 100}%` }}
                         />
                       </div>

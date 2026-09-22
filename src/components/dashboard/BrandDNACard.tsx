@@ -33,13 +33,13 @@ function Swatch({ label, hex }: { label: string; hex: string }) {
   return (
     <div className="flex items-center gap-2">
       <span
-        className="h-9 w-9 flex-shrink-0 rounded-lg border border-[#2A2A30]"
+        className="h-9 w-9 flex-shrink-0 rounded-lg border border-line-strong"
         style={{ backgroundColor: hex }}
         aria-hidden
       />
       <div className="min-w-0">
-        <p className="text-xs font-medium text-[#F4F4F5]">{label}</p>
-        <code className="text-xs uppercase text-[#71717A]">{hex}</code>
+        <p className="text-xs font-medium text-text">{label}</p>
+        <code className="text-xs uppercase text-dim">{hex}</code>
       </div>
     </div>
   );
@@ -49,8 +49,8 @@ function Section({
   icon: Icon, title, children,
 }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
   return (
-    <div className="border-t border-[#1F1F23] px-5 py-4 first:border-0">
-      <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-[#71717A]">
+    <div className="border-t border-line px-5 py-4 first:border-0">
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-dim">
         <Icon className="h-3.5 w-3.5" />
         {title}
       </p>
@@ -74,18 +74,18 @@ export function BrandDNACard({ brand }: { brand: BrandDNA | null | undefined }) 
   const fonts = [brand.brand_font_primary, brand.brand_font_secondary].filter(Boolean);
 
   return (
-    <div className="rounded-lg border border-[#1F1F23] bg-[#111113]">
+    <div className="rounded-lg border border-line bg-surface">
       <div className="flex items-center justify-between gap-3 px-5 py-4">
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wider text-[#71717A]">
+          <p className="text-xs font-medium uppercase tracking-wider text-dim">
             Brand DNA
           </p>
-          <h2 className="mt-0.5 truncate text-2xl font-semibold leading-8 tracking-tight text-[#F4F4F5]">
+          <h2 className="mt-0.5 truncate text-2xl font-semibold leading-8 tracking-tight text-text">
             {brand.company_name || 'Unnamed business'}
           </h2>
         </div>
         {brand.tone_type && (
-          <span className="flex-shrink-0 rounded-full border border-[#7C3AED]/20 bg-[#7C3AED]/10 px-2.5 py-1 text-xs font-medium capitalize text-[#7C3AED]">
+          <span className="flex-shrink-0 rounded-full border border-accent/20 bg-accent/10 px-2.5 py-1 text-xs font-medium capitalize text-accent">
             {brand.tone_type}
           </span>
         )}
@@ -93,13 +93,13 @@ export function BrandDNACard({ brand }: { brand: BrandDNA | null | undefined }) 
 
       {brand.value_proposition && (
         <Section icon={MessageSquareQuote} title="Value proposition">
-          <p className="text-sm leading-relaxed text-[#A1A1AA]">{brand.value_proposition}</p>
+          <p className="text-sm leading-relaxed text-muted">{brand.value_proposition}</p>
         </Section>
       )}
 
       <Section icon={Palette} title="Brand colours">
         {swatches.length === 0 ? (
-          <p className="text-sm text-[#52525B]">No colours extracted from the site.</p>
+          <p className="text-sm text-faint">No colours extracted from the site.</p>
         ) : (
           <div className="flex flex-wrap gap-4">
             {swatches.map((s) => <Swatch key={s.label} label={s.label} hex={s.hex} />)}
@@ -113,7 +113,7 @@ export function BrandDNACard({ brand }: { brand: BrandDNA | null | undefined }) 
             {fonts.map((f) => (
               <span
                 key={String(f)}
-                className="rounded-full border border-[#1F1F23] bg-[#17171A] px-2.5 py-1 text-xs text-[#A1A1AA]"
+                className="rounded-full border border-line bg-raised px-2.5 py-1 text-xs text-muted"
               >
                 {f}
               </span>
@@ -124,22 +124,22 @@ export function BrandDNACard({ brand }: { brand: BrandDNA | null | undefined }) 
 
       <Section icon={MessageSquareQuote} title="Tone of voice">
         {brand.tone_description ? (
-          <p className="text-sm leading-relaxed text-[#A1A1AA]">{brand.tone_description}</p>
+          <p className="text-sm leading-relaxed text-muted">{brand.tone_description}</p>
         ) : (
-          <p className="text-sm text-[#52525B]">No tone captured yet.</p>
+          <p className="text-sm text-faint">No tone captured yet.</p>
         )}
       </Section>
 
       <Section icon={Package} title={'Products (' + products.length + ')'}>
         {products.length === 0 ? (
-          <p className="text-sm text-[#52525B]">No products extracted from the site.</p>
+          <p className="text-sm text-faint">No products extracted from the site.</p>
         ) : (
           <ul className="space-y-2">
             {products.map((p, i) => (
-              <li key={i} className="rounded-lg border border-[#1F1F23] bg-[#17171A] px-3 py-2">
-                <p className="text-sm font-medium text-[#F4F4F5]">{productName(p, i)}</p>
+              <li key={i} className="rounded-lg border border-line bg-raised px-3 py-2">
+                <p className="text-sm font-medium text-text">{productName(p, i)}</p>
                 {typeof p !== 'string' && p?.description && (
-                  <p className="mt-0.5 text-sm text-[#71717A]">{p.description}</p>
+                  <p className="mt-0.5 text-sm text-dim">{p.description}</p>
                 )}
               </li>
             ))}

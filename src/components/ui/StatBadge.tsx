@@ -9,17 +9,17 @@ interface StatBadgeProps {
 
 // Literal class strings — Tailwind JIT cannot resolve names built at runtime.
 const VARIANTS: Record<StatBadgeVariant, string> = {
-  success: 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20',
-  warning: 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20',
-  danger: 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20',
-  neutral: 'bg-[#1F1F23] text-[#A1A1AA] border-[#3F3F46]',
+  success: 'bg-good/10 text-good border-good/20',
+  warning: 'bg-warn/10 text-warn border-warn/20',
+  danger: 'bg-crit/10 text-crit border-crit/20',
+  neutral: 'bg-line text-muted border-line-strong',
 }
 
 const DOTS: Record<StatBadgeVariant, string> = {
-  success: 'bg-[#10B981]',
-  warning: 'bg-[#F59E0B]',
-  danger: 'bg-[#EF4444]',
-  neutral: 'bg-[#71717A]',
+  success: 'bg-good',
+  warning: 'bg-warn',
+  danger: 'bg-crit',
+  neutral: 'bg-dim',
 }
 
 export function StatBadge({ label, variant }: StatBadgeProps) {

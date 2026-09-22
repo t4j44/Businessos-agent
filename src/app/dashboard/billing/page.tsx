@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { CreditCard } from 'lucide-react';
+import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 
 interface Plan {
   tier: string;
@@ -34,17 +35,17 @@ function Meter({ label, used, limit, format, color }: {
   return (
     <div>
       <div className="flex justify-between text-sm mb-1.5">
-        <span className="text-[#A1A1AA]">{label}</span>
+        <span className="text-muted">{label}</span>
         <span className="text-white font-medium">
           {format(used)}{limit ? ` / ${format(limit)}` : ''}
         </span>
       </div>
       {pct !== null ? (
-        <div className="w-full bg-[#17171A] h-2 rounded-full overflow-hidden">
+        <div className="w-full bg-raised h-2 rounded-full overflow-hidden">
           <div className={`${color} h-full`} style={{ width: `${pct}%` }} />
         </div>
       ) : (
-        <p className="text-xs text-[#52525B]">No limit set on your plan</p>
+        <p className="text-xs text-faint">No limit set on your plan</p>
       )}
     </div>
   );
@@ -93,10 +94,10 @@ export default function BillingDashboard() {
   if (loading) {
     return (
       <div className="p-6 md:p-8 max-w-5xl mx-auto space-y-6">
-        <div className="h-20 rounded-xl border border-[#1F1F23] bg-[#111113] animate-pulse" />
+        <Skeleton className="h-20 w-full rounded-lg" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 h-56 rounded-xl border border-[#1F1F23] bg-[#111113] animate-pulse" />
-          <div className="h-56 rounded-xl border border-[#1F1F23] bg-[#111113] animate-pulse" />
+          <SkeletonCard className="md:col-span-2" rows={4} />
+          <SkeletonCard rows={4} />
         </div>
       </div>
     );
@@ -104,8 +105,8 @@ export default function BillingDashboard() {
 
   if (error || !plan || !usage) {
     return (
-      <div className="p-6 md:p-8 max-w-5xl mx-auto text-[#F4F4F5]">
-        <div className="bg-[#111113] border border-[#1F1F23] rounded-xl p-6">
+      <div className="p-6 md:p-8 max-w-5xl mx-auto text-text">
+        <div className="bg-surface border border-line rounded-xl p-6">
           <p className="text-sm text-red-400">Couldn&apos;t load billing — {error ?? 'no data returned'}</p>
         </div>
       </div>
@@ -113,22 +114,22 @@ export default function BillingDashboard() {
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto text-[#F4F4F5]">
+    <div className="p-6 md:p-8 max-w-5xl mx-auto text-text">
       <div className="mb-8">
-        <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-[#F4F4F5] mb-1">Billing &amp; Usage</h1>
-        <p className="text-[#A1A1AA]">Manage your subscription, usage limits, and invoices.</p>
+        <h1 className="text-[32px] font-semibold leading-10 tracking-tight text-text mb-1">Billing &amp; Usage</h1>
+        <p className="text-muted">Manage your subscription, usage limits, and invoices.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Current Plan */}
-        <div className="col-span-1 md:col-span-2 bg-[#111113] border border-[#1F1F23] rounded-xl p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[#7C3AED] opacity-10 rounded-full blur-3xl transform translate-x-10 -translate-y-10"></div>
+        <div className="col-span-1 md:col-span-2 bg-surface border border-line rounded-xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-accent opacity-10 rounded-full blur-3xl transform translate-x-10 -translate-y-10"></div>
 
           <div className="flex justify-between items-start mb-6">
             <div>
-              <div className="text-sm font-medium text-[#7C3AED] mb-1">CURRENT PLAN</div>
-              <h2 className="text-3xl font-semibold text-[#F4F4F5] mb-2 capitalize">{plan.label}</h2>
-              <p className="text-[#A1A1AA] text-sm">
+              <div className="text-sm font-medium text-accent mb-1">CURRENT PLAN</div>
+              <h2 className="text-3xl font-semibold text-text mb-2 capitalize">{plan.label}</h2>
+              <p className="text-muted text-sm">
                 {plan.billing_connected
                   ? 'Billing is connected — manage renewals in the Stripe portal.'
                   : 'No payment method on file yet.'}
@@ -137,28 +138,28 @@ export default function BillingDashboard() {
             <div className="text-right">
               {plan.price_monthly !== null ? (
                 <>
-                  <div className="text-3xl font-semibold text-[#F4F4F5]">${plan.price_monthly}</div>
-                  <div className="text-[#A1A1AA] text-sm">/month</div>
+                  <div className="text-3xl font-semibold text-text">${plan.price_monthly}</div>
+                  <div className="text-muted text-sm">/month</div>
                 </>
               ) : (
-                <div className="text-[#52525B] text-3xl font-bold">—</div>
+                <div className="text-faint text-3xl font-bold">—</div>
               )}
             </div>
           </div>
 
-          <div className="border-t border-[#1F1F23] pt-5 mt-2 flex flex-col sm:flex-row gap-4 items-center">
+          <div className="border-t border-line pt-5 mt-2 flex flex-col sm:flex-row gap-4 items-center">
             <button
               onClick={handleManageBilling}
               disabled={loadingPortal || !plan.billing_connected}
               title={plan.billing_connected ? undefined : 'Connect a payment method first'}
-              className="px-5 py-2 bg-[#17171A] hover:bg-[#1F1F23] text-white text-sm font-medium rounded-lg transition-colors border border-[#1F1F23] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-2 bg-raised hover:bg-line text-white text-sm font-medium rounded-lg transition-colors border border-line disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loadingPortal ? 'Loading...' : 'Manage Billing'}
             </button>
             {plan.tier !== 'agency' && (
               <button
                 onClick={() => window.location.href = '/pricing'}
-                className="px-5 py-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-sm font-medium rounded-lg transition-colors"
+                className="px-5 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors"
               >
                 Upgrade Plan
               </button>
@@ -168,8 +169,8 @@ export default function BillingDashboard() {
         </div>
 
         {/* Usage meters */}
-        <div className="bg-[#111113] border border-[#1F1F23] rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-[#F4F4F5] mb-4">Current Usage</h3>
+        <div className="bg-surface border border-line rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-text mb-4">Current Usage</h3>
 
           <div className="space-y-5">
             <Meter
@@ -177,27 +178,27 @@ export default function BillingDashboard() {
               used={usage.tokens_used}
               limit={usage.token_limit}
               format={(n) => n.toLocaleString()}
-              color="bg-[#7C3AED]"
+              color="bg-accent"
             />
             <div>
               <div className="flex justify-between text-sm mb-1.5">
-                <span className="text-[#A1A1AA]">Voice minutes (this month)</span>
+                <span className="text-muted">Voice minutes (this month)</span>
                 <span className="text-white font-medium">{usage.voice_minutes_this_month}</span>
               </div>
-              <p className="text-xs text-[#52525B]">
+              <p className="text-xs text-faint">
                 Across {usage.calls_total} call{usage.calls_total === 1 ? '' : 's'} handled
               </p>
             </div>
             <div>
               <div className="flex justify-between text-sm mb-1.5">
-                <span className="text-[#A1A1AA]">Agent cost (this month)</span>
+                <span className="text-muted">Agent cost (this month)</span>
                 <span className="text-white font-medium">${usage.cost_usd_this_month.toFixed(2)}</span>
               </div>
-              <p className="text-xs text-[#52525B]">Metered from every agent run</p>
+              <p className="text-xs text-faint">Metered from every agent run</p>
             </div>
             <div>
               <div className="flex justify-between text-sm mb-1.5">
-                <span className="text-[#A1A1AA]">Leads stored</span>
+                <span className="text-muted">Leads stored</span>
                 <span className="text-white font-medium">{usage.leads_total.toLocaleString()}</span>
               </div>
             </div>
@@ -206,15 +207,15 @@ export default function BillingDashboard() {
       </div>
 
       {/* Invoice History */}
-      <div className="bg-[#111113] border border-[#1F1F23] rounded-xl overflow-hidden">
-        <div className="p-5 border-b border-[#1F1F23]">
-          <h3 className="text-lg font-semibold text-[#F4F4F5]">Invoice History</h3>
+      <div className="bg-surface border border-line rounded-xl overflow-hidden">
+        <div className="p-5 border-b border-line">
+          <h3 className="text-lg font-semibold text-text">Invoice History</h3>
         </div>
         <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7C3AED]/10">
-            <CreditCard className="h-6 w-6 text-[#7C3AED]" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10">
+            <CreditCard className="h-6 w-6 text-accent" />
           </div>
-          <p className="text-sm text-[#A1A1AA]">
+          <p className="text-sm text-muted">
             {plan.billing_connected
               ? 'Your subscription invoices live in the Stripe billing portal.'
               : 'No subscription invoices yet — they appear once billing is connected.'}
@@ -223,7 +224,7 @@ export default function BillingDashboard() {
             <button
               onClick={handleManageBilling}
               disabled={loadingPortal}
-              className="text-[#7C3AED] hover:text-[#7C3AED] font-medium text-sm disabled:opacity-50"
+              className="text-accent hover:text-accent font-medium text-sm disabled:opacity-50"
             >
               Open billing portal →
             </button>

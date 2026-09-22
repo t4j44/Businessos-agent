@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { getBlandClient, normalizePhone } from '@/lib/bland';
 
 // GET /api/agents/call-center/status?client_id=…
 //
@@ -28,7 +29,18 @@ export async function GET(req: Request) {
     const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 50) : 5;
 
     // Presence only. The key itself never crosses the network boundary.
-    const connected = Boolean(process.env.BLAND_API_KEY);
+    const configured = Boolean(process.env.BLAND_API_KEY && process.env.BLAND_WEBHOOK_SECRET);
+    const { data: voiceAgents, error: configError } = await supabaseAdmin.from('voice_agents')
+      .select('id, phone_number, status, verified_at, last_verified_call_at').eq('client_id', client_id);
+    let connected = false;
+    let providerError: string | null = null;
+    if (configured && !configError && voiceAgents?.length) {
+      try {
+        const numbers = await getBlandClient().listInboundNumbers();
+        connected = voiceAgents.some((agent) => agent.verified_at && agent.last_verified_call_at && agent.status === 'live'
+          && numbers.some((number) => normalizePhone(number.phone_number) === agent.phone_number));
+      } catch { providerError = 'Voice provider could not be reached.'; }
+    }
 
     const { data, error } = await supabaseAdmin
       .from('call_transcripts')
@@ -47,9 +59,12 @@ export async function GET(req: Request) {
     return NextResponse.json({
       client_id,
       connected,
+      configured,
+      state: connected ? 'live' : configError ? 'setup_required' : providerError ? 'error' : 'not_live',
+      voice_agents: voiceAgents || [],
       provider: 'Bland AI',
       // What the UI should tell the operator to do when it is not connected.
-      hint: connected ? null : 'Add BLAND_API_KEY to .env.local to connect your phone line.',
+      hint: connected ? 'Provider number and a signed inbound call are verified. Call quality still needs owner review.' : providerError || 'Configure provider credentials and a verified inbound-number mapping, then complete a test call and activate the phone line.',
       recent_calls: data || [],
     });
   } catch (err: any) {

@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { createHash } from 'node:crypto';
+import { isDate, isUuid, readJsonBody, ValidationError } from '@/lib/validation';
+import { normalizePhone } from '@/lib/bland';
 import { logAgentRun } from '@/lib/log';
 import {
   getSchedulerContext,
@@ -24,64 +27,40 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = await req.json();
+    const body = await readJsonBody(req);
 
     const client_id = clientId;
-    const customer_name = body?.customer_name;
-    const customer_email = body?.customer_email;
-    const customer_phone = body?.customer_phone;
-    const requested_date = body?.requested_date;
-    const requested_time = body?.requested_time;
-    const service_type = body?.service_type;
-    const notes = body?.notes;
-
-    if (!client_id || !customer_name || !requested_date) {
-      return NextResponse.json(
-        { error: 'client_id, customer_name, and requested_date are required.' },
-        { status: 400 },
-      );
-    }
-
-    // Without one of these the request can never be answered, and a booking
-    // nobody can reply to is worse than a rejected form.
-    if (!customer_email && !customer_phone) {
-      return NextResponse.json(
-        { error: 'Either customer_email or customer_phone is required so we can reach the customer.' },
-        { status: 400 },
-      );
-    }
-
-    // requested_date is a DATE column; a malformed value would fail the insert
-    // with a Postgres error the website form cannot interpret.
-    if (Number.isNaN(new Date(`${requested_date}T00:00:00Z`).getTime())) {
-      return NextResponse.json(
-        { error: 'requested_date must be a valid date (YYYY-MM-DD).' },
-        { status: 400 },
-      );
-    }
-
-    const { data: appointment, error } = await supabaseAdmin
-      .from('appointments')
-      .insert({
-        client_id,
-        customer_name,
-        customer_email: customer_email || null,
-        customer_phone: customer_phone || null,
-        requested_date,
-        requested_time: requested_time || null,
-        service_type: service_type || null,
-        notes: notes || null,
-        status: 'pending',
-      })
-      .select(
-        'id, client_id, customer_name, customer_email, customer_phone, requested_date, requested_time, service_type, status, notes, created_at',
-      )
-      .single();
-
-    if (error) {
-      console.error('[scheduler/request] insert failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const text = (value: unknown, max: number) => {
+      if (value == null || value === '') return null;
+      if (typeof value !== 'string' || value.length > max) throw new ValidationError(`Text fields must be at most ${max} characters.`);
+      return value.trim() || null;
+    };
+    const customer_name = text(body.customer_name,200);
+    const customer_email = text(body.customer_email,254)?.toLowerCase() || null;
+    const rawPhone = text(body.customer_phone,40);
+    const customer_phone = rawPhone ? normalizePhone(rawPhone) : null;
+    const requested_date = body.requested_date;
+    const requested_time = text(body.requested_time,80);
+    const service_type = text(body.service_type,200);
+    const notes = text(body.notes,2000);
+    const key = req.headers.get('idempotency-key') || body.request_key;
+    if (!isUuid(key)) throw new ValidationError('A request_key UUID is required to make retries safe.');
+    if (!customer_name || !isDate(requested_date)) throw new ValidationError('A customer name and valid date (YYYY-MM-DD) are required.');
+    if (customer_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer_email)) throw new ValidationError('Enter a valid email address.');
+    if (rawPhone && !customer_phone) throw new ValidationError('Phone numbers must include a country code, for example +12025550100.');
+    if (!customer_email && !customer_phone) throw new ValidationError('An email address or phone number is required.');
+    const payload = { customer_name,customer_email,customer_phone,requested_date,requested_time,service_type,notes };
+    const fingerprint = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+    const { data: result, error } = await supabaseAdmin.rpc('request_appointment', {
+      p_client_id:client_id,p_key:key,p_fingerprint:fingerprint,p_payload:payload,
+    });
+    if (error || !result) return NextResponse.json({ error:'Booking request could not be saved.' },{status:503});
+    if (result.outcome === 'conflict') return NextResponse.json({ error:'This request key was already used with different details.' },{status:409});
+    if (result.outcome === 'identity_conflict') return NextResponse.json({ error:'The email and phone match different customer records. Resolve the identity before booking.' },{status:409});
+    const appointment = result.appointment;
+    if (result.outcome === 'unchanged') return NextResponse.json({ created:false,unchanged:true,appointment,
+      emails:{customer:{sent:false,skipped:'Existing request; notifications not repeated.'},client:{sent:false,skipped:'Existing request; notifications not repeated.'}} });
+    if (!appointment) return NextResponse.json({ error:'Booking request could not be saved.' },{status:503});
 
     const ctx = await getSchedulerContext(client_id);
 
@@ -138,6 +117,7 @@ export async function POST(req: Request) {
       { status: 201 },
     );
   } catch (err: any) {
+    if (err instanceof ValidationError) return NextResponse.json({error:err.message},{status:err.status});
     console.error('[scheduler/request] POST failed:', err);
     return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
   }

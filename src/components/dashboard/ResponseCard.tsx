@@ -16,7 +16,7 @@ export function ResponseCard({
   const [copyError, setCopyError] = useState<string | null>(null);
 
   if (!text) {
-    return <p className="text-sm leading-5 text-[#71717A]">{emptyLabel}</p>;
+    return <p className="text-sm leading-5 text-dim">{emptyLabel}</p>;
   }
 
   const copy = async () => {
@@ -31,25 +31,25 @@ export function ResponseCard({
   };
 
   return (
-    <div className="rounded-lg border border-[#1F1F23] bg-[#17171A]">
-      <div className="flex items-center justify-between gap-3 border-b border-[#1F1F23] px-3 py-2">
-        <span className="text-xs font-medium uppercase tracking-wider text-[#71717A]">
+    <div className="rounded-lg border border-line bg-raised">
+      <div className="flex items-center justify-between gap-3 border-b border-line px-3 py-2">
+        <span className="text-xs font-medium uppercase tracking-wider text-dim">
           Drafted reply
         </span>
         <button
           onClick={copy}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[#1F1F23] px-2 py-1 text-xs font-medium text-[#A1A1AA] transition-colors hover:border-[#2A2A30] hover:text-[#F4F4F5]"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2 py-1 text-xs font-medium text-muted transition-colors hover:border-line-strong hover:text-text"
         >
-          {copied ? <Check className="h-3 w-3 text-[#10B981]" /> : <Copy className="h-3 w-3" />}
+          {copied ? <Check className="h-3 w-3 text-good" /> : <Copy className="h-3 w-3" />}
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
 
-      <p className="whitespace-pre-wrap px-3 py-3 text-sm leading-relaxed text-[#A1A1AA]">
+      <p className="whitespace-pre-wrap px-3 py-3 text-sm leading-relaxed text-muted">
         {text}
       </p>
 
-      {copyError && <p className="px-3 pb-2 text-xs text-[#EF4444]">{copyError}</p>}
+      {copyError && <p className="px-3 pb-2 text-xs text-crit">{copyError}</p>}
     </div>
   );
 }

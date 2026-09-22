@@ -1,155 +1,63 @@
 import { NextResponse } from 'next/server';
-import { getStripe } from '@/lib/stripe';
-import { supabaseAdmin as supabase } from '@/lib/supabase';
+import { getStripe, PLAN_TIERS } from '@/lib/stripe';
+import { supabaseAdmin } from '@/lib/supabase';
+
+const SUPPORTED = new Set(['customer.subscription.created', 'customer.subscription.updated',
+  'customer.subscription.deleted', 'invoice.payment_succeeded', 'invoice.payment_failed']);
 
 export async function POST(req: Request) {
-  const body = await req.text();
+  if (!process.env.STRIPE_WEBHOOK_SECRET || !process.env.STRIPE_SECRET_KEY)
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
   const signature = req.headers.get('stripe-signature');
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  let event;
-
-  if (webhookSecret) {
-    try {
-      event = getStripe().webhooks.constructEvent(body, signature!, webhookSecret);
-    } catch (err: any) {
-      console.error(`Webhook signature verification failed: ${err.message}`);
-      return NextResponse.json({ error: err.message }, { status: 400 });
-    }
-  } else {
-    // For local dev without webhook secret
-    event = JSON.parse(body);
+  if (!signature) return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
+  // Bound the actual stream, regardless of a client-supplied Content-Length.
+  const reader = req.body?.getReader();
+  if (!reader) return NextResponse.json({ error: 'Missing payload' }, { status: 400 });
+  let size = 0; const parts: Uint8Array[] = [];
+  for (;;) {
+    const { done, value } = await reader.read(); if (done) break;
+    size += value.length;
+    if (size > 512000) { await reader.cancel(); return NextResponse.json({ error: 'Payload too large' }, { status: 413 }); }
+    parts.push(value);
   }
-
+  let event;
+  try { event = getStripe().webhooks.constructEvent(Buffer.concat(parts), signature, process.env.STRIPE_WEBHOOK_SECRET); }
+  catch { return NextResponse.json({ error: 'Invalid signature' }, { status: 400 }); }
+  if (!SUPPORTED.has(event.type)) return NextResponse.json({ received: true, ignored: true });
   try {
-    switch (event.type) {
-      case 'customer.subscription.created': {
-        const subscription = event.data.object;
-        const customerId = subscription.customer as string;
-        
-        // Find client
-        const { data: client } = await supabase
-          .from('clients')
-          .select('id, email')
-          .eq('stripe_customer_id', customerId)
-          .single();
-
-        if (client) {
-          // Update client tier and status
-          await supabase
-            .from('clients')
-            .update({ 
-              plan_tier: subscription.metadata.plan_tier || 'active_tier',
-              status: 'active'
-            })
-            .eq('id', client.id);
-
-          // Trigger n8n Strategist first-run
-          if (process.env.N8N_WEBHOOK_BASE_URL) {
-            fetch(`${process.env.N8N_WEBHOOK_BASE_URL}/strategist-init`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ client_id: client.id })
-            }).catch(e => console.error('n8n error:', e));
-          }
-
-          // Send welcome email via Resend
-          if (process.env.RESEND_API_KEY && client.email) {
-            fetch('https://api.resend.com/emails', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                from: 'Business OS <welcome@businessos.ai>',
-                to: client.email,
-                subject: 'Welcome to Business OS - Your AI Operations Team',
-                html: '<p>Welcome! We are extracting your data and spinning up your AI agents.</p>'
-              })
-            }).catch(e => console.error('Resend error:', e));
-          }
-        }
-        break;
-      }
-      
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object;
-        const customerId = subscription.customer as string;
-
-        const { data: client } = await supabase
-          .from('clients')
-          .select('id')
-          .eq('stripe_customer_id', customerId)
-          .single();
-
-        if (client) {
-          await supabase.from('clients').update({ status: 'cancelled' }).eq('id', client.id);
-          
-          if (process.env.N8N_WEBHOOK_BASE_URL) {
-            fetch(`${process.env.N8N_WEBHOOK_BASE_URL}/deactivate-campaigns`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ client_id: client.id })
-            }).catch(e => console.error('n8n error:', e));
-          }
-        }
-        break;
-      }
-      
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object;
-        const customerId = invoice.customer as string;
-
-        const { data: client } = await supabase
-          .from('clients')
-          .select('id, email')
-          .eq('stripe_customer_id', customerId)
-          .single();
-
-        if (client && process.env.RESEND_API_KEY && client.email) {
-          fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              from: 'Business OS Billing <billing@businessos.ai>',
-              to: client.email,
-              subject: 'Action Required: Payment Failed',
-              html: '<p>Your recent payment failed. Please update your payment method to keep your AI agents running.</p>'
-            })
-          }).catch(e => console.error('Resend error:', e));
-        }
-        break;
-      }
-
-      case 'invoice.payment_succeeded': {
-        const invoice = event.data.object;
-        const customerId = invoice.customer as string;
-
-        const { data: client } = await supabase
-          .from('clients')
-          .select('id')
-          .eq('stripe_customer_id', customerId)
-          .single();
-
-        if (client) {
-          await supabase.from('api_usage').insert({
-            client_id: client.id,
-            billing_event: 'invoice.payment_succeeded',
-            amount: invoice.amount_paid,
-            created_at: new Date().toISOString()
-          });
-        }
-        break;
-      }
+    const object = event.data.object as any;
+    const customerId = typeof object.customer === 'string' ? object.customer : object.customer?.id;
+    if (!customerId) return NextResponse.json({ received: true, ignored: true });
+    const { data: account, error } = await supabaseAdmin.from('clients').select('id')
+      .eq('stripe_customer_id', customerId).maybeSingle();
+    if (error) throw new Error('Account lookup failed');
+    if (!account) return NextResponse.json({ received: true, ignored: true });
+    // Reconcile against Stripe's current subscriptions: webhook delivery is
+    // neither ordered nor exactly once. Never infer entitlement from an invoice.
+    const subscriptions = await getStripe().subscriptions.list({ customer: customerId, status: 'all', limit: 100 });
+    if (subscriptions.has_more) throw new Error('Subscription reconciliation requires pagination');
+    const current = subscriptions.data.filter(s => !['canceled','incomplete_expired'].includes(s.status))
+      .sort((a,b) => b.created-a.created);
+    if (current.filter(s => ['active','trialing'].includes(s.status)).length > 1) throw new Error('Multiple active subscriptions require reconciliation');
+    const subscription = current.find(s => ['active','trialing'].includes(s.status)) || current[0];
+    let tier: string | null = null;
+    if (subscription) {
+      const prices = subscription.items.data.map(item => item.price.id);
+      tier = Object.entries(PLAN_TIERS).find(([, periods]) => Object.values(periods).some(price => price && prices.includes(price)))?.[0] || null;
+      if (!tier) throw new Error('Subscription price is not configured');
     }
-
-    return NextResponse.json({ received: true });
-  } catch (err: any) {
-    console.error('Webhook error:', err.message);
-    return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });
+    const status = subscription?.status === 'active' ? 'active' : subscription?.status === 'trialing' ? 'trial'
+      : subscription && ['past_due','unpaid'].includes(subscription.status) ? 'past_due' : subscription ? 'inactive' : 'cancelled';
+    const { data: outcome, error: saveError } = await supabaseAdmin.rpc('apply_billing_event', {
+      p_event_id: event.id, p_customer_id: customerId, p_event_created: event.created, p_event_type: event.type,
+      p_status: status, p_tier: tier, p_summary: { subscription_id: subscription?.id || null,
+        provider_status: subscription?.status || 'none', invoice_id: event.type.startsWith('invoice.') ? object.id : null,
+        amount_paid: typeof object.amount_paid === 'number' ? object.amount_paid : null, currency: object.currency || null },
+    });
+    if (saveError) throw new Error('Billing state could not be saved');
+    return NextResponse.json({ received: true, outcome });
+  } catch {
+    // Non-2xx asks Stripe to retry. Do not acknowledge an uncommitted update.
+    return NextResponse.json({ error: 'Billing reconciliation failed; retry required.' }, { status: 503 });
   }
 }

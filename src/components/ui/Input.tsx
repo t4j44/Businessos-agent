@@ -31,14 +31,14 @@ export default function Input({
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
       {label && (
-        <label className="text-sm font-medium text-[#A1A1AA]">
+        <label className="label-caps">
           {label}
-          {required && <span className="text-red-400 ml-1">*</span>}
+          {required && <span className="text-crit ml-1">*</span>}
         </label>
       )}
       <div className="relative">
         {icon && (
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A1A1AA]">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">
             {icon}
           </div>
         )}
@@ -50,24 +50,24 @@ export default function Input({
           disabled={disabled}
           required={required}
           className={`
-            w-full bg-[#111113] border rounded-lg px-4 py-2.5 text-sm text-white
-            placeholder:text-[#71717A]
-            focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent
+            w-full bg-surface border rounded-lg px-4 py-2.5 text-sm text-text
+            placeholder:text-dim
+            focus:outline-none
             disabled:opacity-50 disabled:cursor-not-allowed
-            transition-colors duration-200
+            transition-all duration-150 ease-[cubic-bezier(.2,.8,.2,1)]
             ${icon ? 'pl-10' : ''}
             ${error
-              ? 'border-red-500 focus:ring-red-500'
-              : 'border-[#1F1F23] hover:border-[#2A2A30]'
+              ? 'border-crit'
+              : 'border-line hover:border-line-strong'
             }
           `}
         />
       </div>
       {hint && !error && (
-        <p className="text-xs text-[#71717A]">{hint}</p>
+        <p className="text-xs text-dim">{hint}</p>
       )}
       {error && (
-        <p className="text-xs text-red-400 flex items-center gap-1">
+        <p className="text-xs text-crit flex items-center gap-1">
           <span>⚠</span> {error}
         </p>
       )}

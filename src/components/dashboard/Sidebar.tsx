@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Home, Phone, Star, DollarSign, Target, PenLine, BarChart3, Brain,
   Settings, CreditCard, LogOut, Menu, X, ChevronLeft, ChevronRight, Building2,
-  MessageSquare, CalendarDays, Crosshair,
+  MessageSquare, CalendarDays, Crosshair, Users,
 } from 'lucide-react';
 
 type NavItem = {
@@ -26,11 +26,13 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/dashboard',             icon: Home,      label: 'Home' },
       { href: '/dashboard/my-business', icon: Building2, label: 'My Business', subtitle: 'Your brand, voice & data' },
-      { href: '/dashboard/calls',    icon: Phone,      label: 'Calls',    subtitle: 'Answers your phone 24/7' },
+      { href: '/dashboard/customers', icon: Users, label: 'Customers', subtitle: 'People and their history' },
+      { href: '/dashboard/conversations', icon: MessageSquare, label: 'Inbox', subtitle: 'Website chats and human help' },
+      { href: '/dashboard/calls',    icon: Phone,      label: 'Calls',    subtitle: 'Phone setup and call history' },
       { href: '/dashboard/receptionist', icon: MessageSquare, label: 'Receptionist', subtitle: 'Chats with site visitors' },
-      { href: '/dashboard/scheduler',    icon: CalendarDays,  label: 'Scheduler',    subtitle: 'Books your appointments' },
+      { href: '/dashboard/scheduler',    icon: CalendarDays,  label: 'Scheduler',    subtitle: 'Requests and confirmations' },
       { href: '/dashboard/reviews',  icon: Star,       label: 'Reviews',  subtitle: 'Handles your reputation' },
-      { href: '/dashboard/invoices', icon: DollarSign, label: 'Invoices', subtitle: 'Chases your payments' },
+      { href: '/dashboard/invoices', icon: DollarSign, label: 'Invoices', subtitle: 'Invoices and reminder drafts' },
     ],
   },
   {
@@ -38,7 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/dashboard/hunter',  icon: Crosshair, label: 'Hunter',   subtitle: 'Finds local businesses' },
       { href: '/dashboard/leads',   icon: Target,   label: 'Outreach', subtitle: 'Finds and emails leads' },
-      { href: '/dashboard/content', icon: PenLine,  label: 'Content',  subtitle: 'Posts for you' },
+      { href: '/dashboard/content', icon: PenLine,  label: 'Content',  subtitle: 'Content drafts and approvals' },
     ],
   },
   {
@@ -58,11 +60,11 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const PLAN_BADGE: Record<string, string> = {
-  starter:    'bg-[#1F1F23] text-[#A1A1AA] border-[#2A2A30]',
-  core:       'bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/25',
-  growth:     'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/25',
-  scale:      'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/25',
-  enterprise: 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/25',
+  starter:    'bg-line text-muted border-line-strong',
+  core:       'bg-accent/10 text-accent border-accent/25',
+  growth:     'bg-good/10 text-good border-good/25',
+  scale:      'bg-warn/10 text-warn border-warn/25',
+  enterprise: 'bg-warn/10 text-warn border-warn/25',
 };
 
 export function Sidebar() {
@@ -113,31 +115,31 @@ export function Sidebar() {
       <>
         {/* Accent left border marks the active item — no background fill */}
         <span
-          className={`absolute inset-y-1 left-0 w-[2px] rounded-r ${active ? 'bg-[#7C3AED]' : 'bg-transparent'}`}
+          className={`absolute inset-y-1 left-0 w-[2px] rounded-r ${active ? 'bg-accent' : 'bg-transparent'}`}
         />
         <Icon
           className={`h-[18px] w-[18px] flex-shrink-0 ${
-            active ? 'text-[#7C3AED]' : soon ? 'text-[#52525B]' : 'text-[#A1A1AA]'
+            active ? 'text-accent' : soon ? 'text-faint' : 'text-muted'
           }`}
         />
         {!collapsed && (
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5">
               <span
-                className={`text-sm font-semibold ${
-                  active ? 'text-[#F4F4F5]' : soon ? 'text-[#71717A]' : 'text-[#E4E4E7]'
+                className={`label-caps ${
+                  active ? 'text-text' : soon ? 'text-dim' : 'text-muted'
                 }`}
               >
                 {label}
               </span>
               {soon && (
-                <span className="rounded-full border border-[#F59E0B]/25 bg-[#F59E0B]/10 px-1.5 py-px text-[10px] font-semibold text-[#F59E0B]">
+                <span className="rounded-full border border-warn/25 bg-warn/10 px-1.5 py-px text-[10px] font-semibold text-warn">
                   Soon
                 </span>
               )}
             </span>
             {subtitle && (
-              <span className="mt-0.5 block truncate text-xs text-[#71717A]">{subtitle}</span>
+              <span className="mt-0.5 block truncate text-xs text-dim">{subtitle}</span>
             )}
           </span>
         )}
@@ -167,7 +169,7 @@ export function Sidebar() {
         onClick={() => setMobileOpen(false)}
         title={collapsed ? (subtitle ? `${label} — ${subtitle}` : label) : undefined}
         className={`${base} ${
-          active ? '' : 'hover:bg-[#17171A]'
+          active ? '' : 'hover:bg-raised'
         } ${collapsed ? 'justify-center' : ''}`}
       >
         {inner}
@@ -179,11 +181,11 @@ export function Sidebar() {
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className={`flex items-center gap-3 px-4 py-5 ${collapsed ? 'justify-center' : ''}`}>
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#7C3AED]">
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent">
           <span className="text-sm font-bold text-white">B</span>
         </div>
         {!collapsed && (
-          <span className="text-base font-semibold tracking-tight text-[#F4F4F5]">Business OS</span>
+          <span className="text-base font-semibold tracking-tight text-text">Business OS</span>
         )}
       </div>
 
@@ -192,21 +194,21 @@ export function Sidebar() {
         {NAV_GROUPS.map((group) => (
           <div key={group.heading} className="space-y-0.5">
             {!collapsed && (
-              <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-[#52525B]">
+              <p className="label-caps px-3 pb-1.5">
                 {group.heading}
               </p>
             )}
-            {collapsed && <div className="mx-3 mb-1.5 border-t border-[#1F1F23]" />}
+            {collapsed && <div className="mx-3 mb-1.5 border-t border-line" />}
             {group.items.map(renderItem)}
           </div>
         ))}
       </nav>
 
       {/* Bottom section */}
-      <div className="space-y-1 border-t border-[#1F1F23] px-3 py-3">
+      <div className="space-y-1 border-t border-line px-3 py-3">
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className={`hidden w-full items-center gap-3 rounded-lg px-3 py-2 text-[#52525B] transition-colors hover:bg-[#17171A] hover:text-[#A1A1AA] lg:flex ${
+          className={`hidden w-full items-center gap-3 rounded-lg px-3 py-2 text-faint transition-colors hover:bg-raised hover:text-muted lg:flex ${
             collapsed ? 'justify-center' : ''
           }`}
         >
@@ -221,8 +223,8 @@ export function Sidebar() {
         </button>
 
         {!collapsed && (
-          <div className="rounded-lg border border-[#1F1F23] bg-[#17171A] px-3 py-2.5">
-            <p className="truncate text-sm font-medium text-[#F4F4F5]">
+          <div className="rounded-lg border border-line bg-raised px-3 py-2.5">
+            <p className="truncate text-sm font-medium text-text">
               {client?.name || 'Your Business'}
             </p>
             <span
@@ -236,7 +238,7 @@ export function Sidebar() {
         <button
           onClick={handleSignOut}
           title={collapsed ? 'Sign out' : undefined}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[#A1A1AA] transition-colors hover:bg-[#17171A] hover:text-[#EF4444] ${
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-muted transition-colors hover:bg-raised hover:text-crit ${
             collapsed ? 'justify-center' : ''
           }`}
         >
@@ -252,7 +254,7 @@ export function Sidebar() {
       {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-4 z-50 rounded-lg border border-[#1F1F23] bg-[#111113] p-2 text-[#A1A1AA] transition-colors hover:text-[#F4F4F5] lg:hidden"
+        className="fixed left-4 top-4 z-50 rounded-lg border border-line bg-surface p-2 text-muted transition-colors hover:text-text lg:hidden"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -266,13 +268,13 @@ export function Sidebar() {
 
       {/* Mobile drawer — full labels once opened */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 transform border-r border-[#1F1F23] bg-[#111113] transition-transform duration-200 ease-in-out lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 transform border-r border-line bg-surface transition-transform duration-200 ease-in-out lg:hidden ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <button
           onClick={() => setMobileOpen(false)}
-          className="absolute right-3 top-4 rounded-lg p-1.5 text-[#A1A1AA] transition-colors hover:bg-[#17171A] hover:text-[#F4F4F5]"
+          className="absolute right-3 top-4 rounded-lg p-1.5 text-muted transition-colors hover:bg-raised hover:text-text"
         >
           <X className="h-4 w-4" />
         </button>
@@ -281,7 +283,7 @@ export function Sidebar() {
 
       {/* Desktop sidebar */}
       <aside
-        className={`hidden flex-shrink-0 flex-col border-r border-[#1F1F23] bg-[#111113] transition-all duration-200 ease-in-out lg:flex ${
+        className={`hidden flex-shrink-0 flex-col border-r border-line bg-surface transition-all duration-200 ease-in-out lg:flex ${
           collapsed ? 'w-16' : 'w-64'
         }`}
       >

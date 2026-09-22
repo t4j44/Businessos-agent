@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server'
 import { callAI, MODELS, parseJSON } from '@/lib/ai'
 import { supabaseAdmin } from '@/lib/supabase'
 import { logAgentRun } from '@/lib/log'
-import { TEST_CLIENT_ID } from '@/lib/client-config'
+import { isUuid } from '@/lib/validation'
 import { getMondayDateString } from '@/lib/week'
 import { runMarketIntelligence } from '../intelligence/market/route'
 import { runTrendRadar } from '../intelligence/trends/route'
 import { runAudienceIntelligence } from '../intelligence/audience/route'
 import { requireCron, authErrorResponse } from '@/lib/auth-guard';
+import { cronHandler, SkipCounter } from '@/lib/cron';
 
 // Nightwatch — the 2am orchestrator. Runs the three intelligence agents,
 // synthesises what they found, attaches it to this week's brief, and raises an
@@ -420,7 +421,8 @@ export async function runNightwatch(params: {
 
   try {
     if (!params.run_all_clients) {
-      return await runForClient(params.client_id || TEST_CLIENT_ID)
+      if (!isUuid(params.client_id)) return { status: 400, body: { error: 'A valid client_id is required.' } }
+      return await runForClient(params.client_id)
     }
 
     const { data: clients, error } = await supabaseAdmin
@@ -478,3 +480,64 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
   }
 }
+
+// GET /api/agents/nightwatch — the scheduled entry point.
+//
+// vercel.json has pointed a cron at this path since Nightwatch shipped, but
+// the route only exported POST. Vercel invokes cron paths with GET, so every
+// scheduled fire came back 405 and was logged as "fired". Nightwatch has
+// never run from the schedule until this handler.
+//
+// POST stays for manual and test invocations (it accepts a single client_id);
+// the schedule always runs the whole active book.
+export const GET = cronHandler({
+  name: 'nightwatch',
+  agentType: 'nightwatch',
+  async run() {
+    const { status, body } = await runNightwatch({ run_all_clients: true })
+
+    // A non-200 here is a whole-run failure — no API key, clients query
+    // failed — not a per-client one. Throw so the harness returns 500 and
+    // Vercel marks the run as failed.
+    if (status !== 200) {
+      throw new Error(body?.error || `runNightwatch returned ${status}`)
+    }
+
+    const results: any[] = Array.isArray(body?.results) ? body.results : []
+    const skipped = new SkipCounter()
+    let acted = 0
+    let errors = 0
+
+    for (const r of results) {
+      if (r?.success) {
+        acted++
+      } else if (r?.error) {
+        errors++
+      } else if (r?.skipped) {
+        // runForClient's own reason string, e.g. 'no brand profile'.
+        skipped.add(String(r.skipped).replace(/\s+/g, '_'))
+      } else {
+        skipped.add('unknown')
+      }
+    }
+
+    return {
+      scanned: results.length,
+      acted,
+      skipped: skipped.toJSON(),
+      errors,
+      detail: {
+        total_cost_usd: body?.total_cost_usd ?? 0,
+        priority_alerts: body?.priority_alerts ?? 0,
+        clients: results.map((r) => ({
+          client_id: r?.client_id ?? null,
+          success: !!r?.success,
+          agents_run: r?.agents_run ?? 0,
+          cost_usd: r?.total_cost_usd ?? 0,
+          error: r?.error ?? null,
+          skipped: r?.skipped ?? null,
+        })),
+      },
+    }
+  },
+})

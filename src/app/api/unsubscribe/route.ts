@@ -21,19 +21,19 @@ function page(message: string): Response {
 <style>
   body {
     margin: 0; min-height: 100vh; display: flex; align-items: center;
-    justify-content: center; background: #0A0A0B; color: #FAFAFA;
-    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    justify-content: center; background: #08070C; color: #F2F0F7;
+    font-family: Archivo, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     padding: 24px;
   }
   .card {
-    max-width: 440px; width: 100%; background: #111113;
-    border: 1px solid #1F1F23; border-radius: 8px; padding: 32px; text-align: center;
+    max-width: 440px; width: 100%; background: #100E16;
+    border: 1px solid #262233; border-radius: 10px; padding: 32px; text-align: center;
   }
   h1 { font-size: 20px; font-weight: 600; margin: 0 0 8px; letter-spacing: -0.01em; }
-  p { font-size: 14px; line-height: 1.6; color: #A1A1AA; margin: 0; }
+  p { font-size: 14px; line-height: 1.6; color: #8B87A0; margin: 0; }
   .mark {
-    width: 40px; height: 40px; border-radius: 8px; margin: 0 auto 16px;
-    background: rgba(16,185,129,0.1); color: #10B981; font-size: 20px;
+    width: 40px; height: 40px; border-radius: 10px; margin: 0 auto 16px;
+    background: rgba(79,191,139,0.1); color: #4FBF8B; font-size: 20px;
     display: flex; align-items: center; justify-content: center;
   }
 </style>

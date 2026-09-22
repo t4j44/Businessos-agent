@@ -1,26 +1,62 @@
-export async function GET(req: Request) {
-  const auth = req.headers.get('authorization')
-  if (auth !== 'Bearer ' + process.env.CRON_SECRET) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  const { supabaseAdmin } = await import('@/lib/supabase')
-  const { data: clients } = await supabaseAdmin
-    .from('clients').select('id, name').eq('status', 'active')
-  const results = []
-  for (const client of (clients || [])) {
-    try {
-      const res = await fetch(
-        process.env.NEXT_PUBLIC_APP_URL + '/api/agents/invoice-chase/run',
-        { method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // The agent routes now require a session or this secret.
-            Authorization: 'Bearer ' + (process.env.CRON_SECRET ?? ''),
-          },
-          body: JSON.stringify({ client_id: client.id }) }
-      )
-      results.push({ client: client.name, status: res.ok ? 'ok' : 'failed' })
-    } catch (e) { results.push({ client: client.name, status: 'error' }) }
-  }
-  return Response.json({ processed: results.length, results, timestamp: new Date().toISOString() })
-}
+import { supabaseAdmin } from '@/lib/supabase'
+import { cronHandler, forEachClient, callAgent, selfBaseUrl, SkipCounter } from '@/lib/cron'
+
+// GET /api/cron/invoice-chase — daily, US morning.
+//
+// Fans out to /api/agents/invoice-chase/run once per active client. That route
+// decides which invoices are chaseable (unpaid, unpaused, overdue, below the
+// final step) and drafts the next email for each.
+//
+// WHAT CHANGED: this used to fetch `process.env.NEXT_PUBLIC_APP_URL + ...` with
+// that variable unset, catch the resulting throw per client, and return 200
+// with `processed: N`. It reported success on every run while chasing nothing.
+// The base URL now fails loudly when it cannot be resolved, and the counts in
+// the body come from what the agent actually did.
+
+export const runtime = 'nodejs'
+export const maxDuration = 120
+
+export const GET = cronHandler({
+  name: 'invoice-chase',
+  agentType: 'invoice_chase',
+  async run() {
+    const base = selfBaseUrl()
+    if (!base) {
+      throw new Error('Cannot resolve own URL: set NEXT_PUBLIC_APP_URL (VERCEL_URL is also accepted).')
+    }
+
+    const { data: clients, error } = await supabaseAdmin
+      .from('clients')
+      .select('id, name')
+      .eq('status', 'active')
+
+    if (error) throw new Error(`clients query failed: ${error.message}`)
+
+    const list = clients ?? []
+    const skipped = new SkipCounter()
+    let invoicesEligible = 0
+    let invoicesDrafted = 0
+
+    const { errors, results } = await forEachClient(list, async (client) => {
+      const out = await callAgent(base, '/api/agents/invoice-chase/run', { client_id: client.id })
+
+      const eligible = Number(out?.eligible) || 0
+      const drafted = Number(out?.drafted) || 0
+      invoicesEligible += eligible
+      invoicesDrafted += drafted
+
+      if (eligible === 0) skipped.add('no_overdue_invoices')
+      else if (drafted < eligible) skipped.add('draft_failed', eligible - drafted)
+
+      return { eligible, drafted, sent: 0 }
+    })
+
+    return {
+      scanned: list.length,
+      acted: results.filter((r) => r.status === 'ok' && Number(r.drafted) > 0).length,
+      skipped: skipped.toJSON(),
+      errors,
+      detail: { invoices_eligible: invoicesEligible, invoices_drafted: invoicesDrafted, clients: results },
+    }
+  },
+})

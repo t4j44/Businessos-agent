@@ -6,6 +6,7 @@ import { StatusPill } from '@/components/dashboard/StatusPill';
 import { ErrorMessage, getJSON } from '@/components/dashboard/AgentState';
 import { normalizeStatus, relativeTime } from '@/lib/agent-catalog';
 import { TEST_CLIENT_ID } from '@/lib/client-config';
+import { SkeletonRow } from '@/components/ui/Skeleton';
 
 type AgentRun = {
   id: string;
@@ -142,23 +143,23 @@ export function ActivityFeed({ clientId = TEST_CLIENT_ID }: { clientId?: string 
   }, [runs]);
 
   return (
-    <section className="rounded-lg border border-[#1F1F23] bg-[#111113]">
-      <div className="flex items-center justify-between gap-3 border-b border-[#1F1F23] px-5 py-4">
+    <section className="rounded-lg border border-line bg-surface">
+      <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
         <div className="flex items-center gap-2">
-          <Activity className="h-4 w-4 text-[#7C3AED]" />
-          <h2 className="text-base font-semibold text-[#F4F4F5]">Live activity</h2>
+          <Activity className="h-4 w-4 text-accent" />
+          <h2 className="text-base font-semibold text-text">Live activity</h2>
         </div>
 
         <span
           className={
             'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ' +
             (live
-              ? 'border-[#10B981]/20 bg-[#10B981]/10 text-[#10B981]'
-              : 'border-[#52525B]/20 bg-[#52525B]/10 text-[#71717A]')
+              ? 'border-good/20 bg-good/10 text-good'
+              : 'border-faint/20 bg-faint/10 text-dim')
           }
           title={live ? 'Refreshing every 10 seconds' : 'Paused while this tab is in the background'}
         >
-          <span className={'h-1.5 w-1.5 rounded-full ' + (live ? 'bg-[#10B981] animate-pulse' : 'bg-[#52525B]')} />
+          <span className={'h-1.5 w-1.5 rounded-full ' + (live ? 'bg-good animate-pulse' : 'bg-faint')} />
           {live ? 'Live' : 'Paused'}
         </span>
       </div>
@@ -171,32 +172,30 @@ export function ActivityFeed({ clientId = TEST_CLIENT_ID }: { clientId?: string 
         )}
 
         {loading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-14 animate-pulse rounded-lg bg-[#17171A]" />
-            ))}
+          <div>
+            {Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
           </div>
         ) : runs.length === 0 ? (
           <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#7C3AED]/10">
-              <Activity className="h-6 w-6 text-[#7C3AED]" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent/10">
+              <Activity className="h-6 w-6 text-accent" />
             </div>
-            <p className="text-sm text-[#71717A]">
+            <p className="text-sm text-dim">
               No agent runs yet — run your first agent above
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-[#1F1F23]">
+          <ul className="divide-y divide-line">
             {runs.map((run) => {
               const meta = metaFor(run.agent_type);
               const summary = truncate(run.output_summary);
               return (
                 <li
                   key={run.id}
-                  className="flex items-start gap-3 px-5 py-3 transition-colors hover:bg-[#17171A]"
+                  className="flex items-start gap-3 px-5 py-3 transition-colors hover:bg-raised"
                 >
                   <span
-                    className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[#1F1F23] bg-[#17171A] text-base"
+                    className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-line bg-raised text-base"
                     aria-hidden
                   >
                     {meta.icon}
@@ -204,17 +203,17 @@ export function ActivityFeed({ clientId = TEST_CLIENT_ID }: { clientId?: string 
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-sm font-medium text-[#F4F4F5]">{meta.name}</span>
+                      <span className="text-sm font-medium text-text">{meta.name}</span>
                       <StatusPill status={normalizeStatus(run.status)} label={run.status ?? undefined} />
                     </div>
                     {summary && (
-                      <p className="mt-1 text-sm leading-5 text-[#71717A]">{summary}</p>
+                      <p className="mt-1 text-sm leading-5 text-dim">{summary}</p>
                     )}
                   </div>
 
                   <div className="flex-shrink-0 text-right">
-                    <p className="text-xs tabular-nums text-[#A1A1AA]">{formatCost(run.cost_usd)}</p>
-                    <p className="mt-0.5 text-xs text-[#52525B]">{relativeTime(run.created_at)}</p>
+                    <p className="text-xs tabular-nums text-muted">{formatCost(run.cost_usd)}</p>
+                    <p className="mt-0.5 text-xs text-faint">{relativeTime(run.created_at)}</p>
                   </div>
                 </li>
               );

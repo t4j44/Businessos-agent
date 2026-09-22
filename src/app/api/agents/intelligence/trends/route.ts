@@ -3,7 +3,7 @@ import { callAI, MODELS, parseJSON } from '@/lib/ai'
 import { supabaseAdmin } from '@/lib/supabase'
 import { braveSearch } from '@/lib/brave'
 import { logAgentRun } from '@/lib/log'
-import { TEST_CLIENT_ID } from '@/lib/client-config'
+import { isUuid } from '@/lib/validation'
 import { industrySubreddits } from '@/lib/subreddits'
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
 
@@ -268,7 +268,8 @@ export async function runTrendRadar(params: {
     return { status: 503, body: { error: 'OPENROUTER_API_KEY missing' } }
   }
 
-  const client_id = params.client_id || TEST_CLIENT_ID
+  if (!isUuid(params.client_id)) return { status: 400, body: { error: 'A valid client_id is required.' } }
+  const client_id = params.client_id
   const industry = String(params.industry || '').trim()
 
   const keywords = (Array.isArray(params.keywords) ? params.keywords : [])

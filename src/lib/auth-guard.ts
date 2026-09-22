@@ -119,8 +119,7 @@ export async function requireCron(req: Request): Promise<void> {
 
 export function isProduction(): boolean {
   return (
-    process.env.VERCEL_ENV === 'production' ||
-    (process.env.NODE_ENV === 'production' && !process.env.VERCEL_ENV)
+    Boolean(process.env.VERCEL_ENV) || process.env.NODE_ENV === 'production'
   )
 }
 
