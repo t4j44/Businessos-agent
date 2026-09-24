@@ -36,6 +36,8 @@ Checkpoint `35dea56` was pushed to `codex/staging-pilot`; [its GitHub checks pas
 
 **Do not implement new planned agents until the full two-tenant hosted acceptance matrix passes.** See PILOT_RUNBOOK.md for the outstanding gates.
 
+Scheduler recovery checkpoint `9867443` is pushed and [passed GitHub Actions](https://github.com/t4j44/Businessos-agent/actions/runs/36064283866). Its 58 tests and build still use local/test database fixtures; hosted readiness remains blocked.
+
 1. Prove one business's knowledge → inquiry → customer → appointment → owner follow-up path, with two test tenants and failures/retries included.
 2. Close voice provisioning, owner notifications, delivery recovery and runtime adoption before unattended pilot operation. Validate the new inbox/handoff path with actual authenticated staging accounts.
 3. Finish invoice and review delivery with approved payload versions, provider receipts and reconciliation.

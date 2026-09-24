@@ -16,6 +16,7 @@ The staging pilot is **blocked, not accepted**. New planned agents remain frozen
 |---|---|---|
 | Original milestone preserved and pushed | PASS | [Commit 35dea56](https://github.com/t4j44/Businessos-agent/commit/35dea56d61e881580d82f0ba1e17056f8b52c177); main was not advanced |
 | Remote application checks for original milestone | PASS | [GitHub Actions run 35759595561](https://github.com/t4j44/Businessos-agent/actions/runs/35759595561), conclusion success; uses inert database placeholders |
+| Recovery checkpoint and remote checks | PASS | [Commit 9867443](https://github.com/t4j44/Businessos-agent/commit/98674438e5f0cb1e984e9da179b3095fb844a386), [GitHub Actions run 36064283866](https://github.com/t4j44/Businessos-agent/actions/runs/36064283866), conclusion success; no hosted database/provider involved |
 | Configured hosted database access | FAILED PREFLIGHT | HEAD /rest/v1/clients?select=id&limit=0 returned HTTP 401 at 2026-09-24T21:47:50Z (2026-09-25 in Dhaka). Zero customer rows read; zero writes |
 | Staging identity / migration access | BLOCKED | Existing local Vercel link names businessos-agent-8suy; it has not been identified as disposable staging. No staging operator/database connection supplied |
 | Restricted deployment and authenticated two-tenant acceptance | NOT RUN | No hosted migration or deployment claimed. Browser automation stopped because the tool could not establish the current browser URL |
