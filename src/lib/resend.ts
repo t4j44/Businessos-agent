@@ -73,7 +73,7 @@ export type SendEmailResult = {
  *
  * Never throws — a failed send is reported in the return value.
  */
-export async function sendBrandedEmail(params: {
+export type BrandedEmailParams = {
   /** Whose suppression list and unsubscribe token apply. Required. */
   clientId: string
   from_name: string
@@ -89,7 +89,16 @@ export async function sendBrandedEmail(params: {
    * copy. Everything else is commercial and gets the full CAN-SPAM footer.
    */
   transactional?: boolean
-}): Promise<SendEmailResult> {
+}
+
+export type PreparedEmail = {
+  from: string; to: string; reply_to?: string; subject: string; html: string; text: string;
+  headers: Record<string, string>;
+}
+
+// Prepare separately so an outbox can persist the exact body before contacting
+// the provider. Retrying must never render a different body under the same key.
+export async function prepareBrandedEmail(params: BrandedEmailParams): Promise<PreparedEmail | SendEmailResult> {
   if (!process.env.RESEND_API_KEY) {
     return { sent: false, skipped: 'RESEND_API_KEY missing from .env.local' }
   }
@@ -118,21 +127,24 @@ export async function sendBrandedEmail(params: {
     ? transactionalFooter(unsubscribeUrl)
     : complianceFooter(unsubscribeUrl)
 
+  return {
+    from: `${params.from_name} <${FROM_ADDRESS}>`, to: params.to,
+    reply_to: params.reply_to || undefined, subject: params.subject,
+    html: params.html + footer.html, text: params.text + footer.text,
+    headers: {
+      'List-Unsubscribe': `<${unsubscribeUrl}>, <mailto:unsubscribe@${UNSUB_MAIL_DOMAIN}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
+  }
+}
+
+export async function sendBrandedEmail(params: BrandedEmailParams): Promise<SendEmailResult> {
   try {
+    const prepared = await prepareBrandedEmail(params)
+    if ('sent' in prepared) return prepared
     const resend = await getResendClient()
     const { data, error } = await resend.emails.send({
-      from: `${params.from_name} <${FROM_ADDRESS}>`,
-      to: params.to,
-      replyTo: params.reply_to || undefined,
-      subject: params.subject,
-      html: params.html + footer.html,
-      text: params.text + footer.text,
-      headers: {
-        // One-click unsubscribe: required by Gmail/Yahoo bulk sender rules and
-        // honoured by most clients ahead of the visible link.
-        'List-Unsubscribe': `<${unsubscribeUrl}>, <mailto:unsubscribe@${UNSUB_MAIL_DOMAIN}>`,
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-      },
+      ...prepared, replyTo: prepared.reply_to,
     })
 
     if (error) {

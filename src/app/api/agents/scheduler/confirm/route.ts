@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { logAgentRun } from '@/lib/log';
-import { getSchedulerContext, sendConfirmationEmail, formatWhen } from '@/lib/appointments';
-import type { SendEmailResult } from '@/lib/resend';
+import { formatWhen } from '@/lib/appointments';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 import { isDate, isUuid, normalizeTime, readJsonBody, ValidationError } from '@/lib/validation';
 
@@ -99,18 +98,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ confirmed: true, appointment, unchanged: true, email: { sent: false, skipped: 'Already confirmed; notification not repeated.' } });
     }
 
-    const ctx = await getSchedulerContext(existing.client_id);
-
-    const emailResult: SendEmailResult = appointment.customer_email
-      ? await sendConfirmationEmail({
-          ctx,
-          customerName: appointment.customer_name,
-          customerEmail: appointment.customer_email,
-          confirmedDate: finalDate,
-          confirmedTime: confirmed_time,
-          serviceType: appointment.service_type,
-        })
-      : { sent: false, skipped: 'Appointment has no customer_email.' };
+    const emailResult = { sent: false, queued: Boolean(appointment.customer_email) };
 
     await logAgentRun({
       client_id: existing.client_id,
@@ -123,7 +111,7 @@ export async function POST(req: Request) {
         confirmed_date: finalDate,
         confirmed_time,
         customer_notified: emailResult.sent,
-        email_issue: emailResult.error || emailResult.skipped || null,
+        notification_queued: emailResult.queued,
       },
     });
 

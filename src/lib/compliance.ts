@@ -111,6 +111,7 @@ export async function getUnsubscribeToken(
 
     if (raced?.token) return raced.token
     console.error('[compliance] could not persist unsubscribe token:', error.message)
+    throw new Error('Could not persist email preferences token.')
   }
 
   return token

@@ -1,12 +1,28 @@
 # Business OS implementation report
 
-Updated: 2026-09-19. Scope: local repository work in `E:\Business OS agent`.
+Updated: 2026-09-25. Scope: preserved hardening, GitHub checkpoint, scheduler recovery and hosted staging preflight.
 
 ## Founder decision
 
 The weak assumption in the supplied material is that working agent endpoints equal a working business operating system. They do not. A draft is not a sent message; an accepted webhook is not a live phone line; a successful build is not evidence that customers can use the product safely. The project has useful foundations, but its production readiness and willingness to pay remain unproved.
 
-Execution focuses first on preserving business knowledge, isolating customers, controlling public AI spend, and making workflow outcomes truthful. No production migration, deployment, commit, push, live phone call, email campaign, or paid model test has been performed in this task. Existing uncommitted frontend and onboarding work was preserved.
+Execution focuses first on preserving business knowledge, isolating customers, controlling public AI spend, and making workflow outcomes truthful. The original milestone was committed and pushed as `35dea56d61e881580d82f0ba1e17056f8b52c177` on `codex/staging-pilot`, preserving the frontend/onboarding work and migrations 023–035. No hosted migration, application deployment, live phone call, email campaign or paid model test has been performed. Automatic Vercel deployment is disabled for this branch until staging is isolated.
+
+## Staging execution evidence — 2026-09-25
+
+The staging pilot is **blocked, not accepted**. New planned agents remain frozen until the entire hosted acceptance matrix passes.
+
+| Gate | Actual result | Evidence / boundary |
+|---|---|---|
+| Original milestone preserved and pushed | PASS | [Commit 35dea56](https://github.com/t4j44/Businessos-agent/commit/35dea56d61e881580d82f0ba1e17056f8b52c177); main was not advanced |
+| Remote application checks for original milestone | PASS | [GitHub Actions run 35759595561](https://github.com/t4j44/Businessos-agent/actions/runs/35759595561), conclusion success; uses inert database placeholders |
+| Configured hosted database access | FAILED PREFLIGHT | HEAD /rest/v1/clients?select=id&limit=0 returned HTTP 401 at 2026-09-24T21:47:50Z (2026-09-25 in Dhaka). Zero customer rows read; zero writes |
+| Staging identity / migration access | BLOCKED | Existing local Vercel link names businessos-agent-8suy; it has not been identified as disposable staging. No staging operator/database connection supplied |
+| Restricted deployment and authenticated two-tenant acceptance | NOT RUN | No hosted migration or deployment claimed. Browser automation stopped because the tool could not establish the current browser URL |
+| Calendar and Bland lifecycle | BLOCKED / UNFINISHED | Local Nylas/Bland credentials are empty; test calendar, account/number, approved recipient and spending limit remain unspecified |
+| Scheduler delivery recovery | LOCAL IMPLEMENTATION | Additive migration 036, atomic email enqueue, leases, immutable payloads, bounded retries, provider receipt matching and owner recovery UI; live acceptance unverified |
+
+Migration files 023–035 are unchanged from the pushed checkpoint. Migration 036 must be installed before deploying the new Scheduler routes. Passing CI does not make any hosted acceptance scenario pass.
 
 ## Sources and authority
 
@@ -50,7 +66,7 @@ Observed corrections to source claims:
 These are implementation gaps, not questions that require the founder to choose a technology before work can continue:
 
 1. **Voice lifecycle:** provider-side provisioning, prompt publication, recording/consent configuration, test-call evidence, failed-event recovery UI and escalation delivery. Incoming transcripts are analyzed through a leased, bounded-retry workflow with owner follow-ups. Missing sentiment remains null.
-2. **Appointment intake:** timezone/business hours validation, resource calendars, transactional notification outbox, cancellation/reschedule flows, and external calendar synchronization. The confirmation gate currently models one resource per business, with a default 30-minute duration. It is not a Nylas/Google calendar integration.
+2. **Appointment intake:** business hours and exact-time timezone validation, resource calendars, cancellation/reschedule flows, and external calendar synchronization. A transactional email outbox and owner recovery controls now exist; live delivery, worker scheduling and concurrent reschedule/send behavior still need acceptance. Reminders use the configured business timezone. The confirmation gate models one resource per business with a default 30-minute duration; it is not a Nylas/Google integration.
 3. **Runtime coverage:** the shared boundary protects public receptionist execution, stored call analysis and rate-limited human-help intake. Human requests use no AI tokens and remain available when AI is paused or unconfigured. Other agents still need full adoption, durable job leases, retry/backoff policies, approval execution and delivery receipts. An approved item awaiting execution is not automatically sent by n8n.
 4. **Owner operations:** the conversation inbox and explicit human-help requests are implemented locally. Team assignment, reliable owner notifications, two-way human messaging, authenticated customer identity verification for private history, agent instructions/versioning, retention/export/deletion controls and wider error recovery remain. Resolving a request records an owner decision and sends no message.
 5. **BI definitions:** dashboard and weekly brief now share authoritative SQL aggregates, unknown-value handling and payment-date collections. Multi-currency and business-specific target definitions remain. Do not market WARE score or ROI as validated business outcomes.
@@ -65,7 +81,7 @@ Local automated checks exercise actual TypeScript route logic with mocked extern
 
 See `PILOT_RUNBOOK.md` for installation and acceptance gates.
 
-### Final local verification — 2026-09-19
+### Earlier local verification — 2026-09-19
 
 | Check | Result | Limit |
 |---|---|---|
@@ -82,7 +98,15 @@ The browser walkthrough found a real blocker: `.glass-text` used z-index 1 while
 
 The widget walkthrough also corrected a high-specificity reset that removed bubble spacing, removed hidden form controls from the closed widget, and prevented the floating toggle from covering the send button on mobile. Human-help submissions show a saved-request receipt, not a promise of immediate human contact.
 
-The PostgreSQL tests also relocate pgvector to the `extensions` schema and verify public retrieval and atomic brand replacement there. Hosted Supabase permissions, extension configuration and migration history still need staging verification. The new GitHub Actions workflow is prepared locally; it has not run remotely.
+The PostgreSQL tests also relocate pgvector to the `extensions` schema and verify public retrieval and atomic brand replacement there. Hosted Supabase permissions, extension configuration and migration history still need staging verification. The original milestone subsequently passed GitHub Actions; that run did not use live database credentials.
+
+### Scheduler recovery verification — 2026-09-25
+
+The current source passes **58 automated tests** and strict type checking. Added tests cover atomic enqueue, cross-tenant rejection, lease expiry/reclaim, immutable retry payloads, provider ambiguity, receipt reconciliation, timezone reminder selection and fair dispatch. Providers remain test doubles; migration tests use PGlite.
+
+The pilot reminder worker now queues email instead of directly sending SMS/email. SMS dispatch in this path is disabled pending its own receipt/recovery implementation. The queue processes explicit owner requests or authenticated worker calls; the new delivery worker is not yet scheduled on hosted staging. No legacy bookings are emailed as a migration side effect. A reschedule after dispatch begins can still race an in-flight email and needs hosted acceptance; no distributed exactly-once claim is made.
+
+The final production build passed on 2026-09-25 (Next.js 16.3.5, 92 static pages). All **25 local production HTTP checks passed** on port 3189, including anonymous rejection for delivery listing/retry and the worker. `git diff --check` passed. No hosted deployment or authenticated UI acceptance is implied.
 
 ## Product validation before expansion
 
@@ -96,6 +120,9 @@ The PostgreSQL tests also relocate pgvector to the `extensions` schema and verif
 Pilot success should be agreed with the owner before starting. Suggested experiment thresholds, not industry benchmarks: no cross-customer disclosure; every claimed booking has a stored confirmation; every claimed send has a provider receipt; owners can correct or pause immediately; track dollars collected separately from AI-attributed revenue. Technical complexity is high for a complete 21-agent platform; the narrow pilot is materially smaller. No defensible implementation cost or delivery date can be derived from endpoint counts alone.
 
 ## Official references checked
+
+- [Resend idempotency keys](https://resend.com/docs/dashboard/emails/idempotency-keys): 24-hour provider window; automatic outbox retries stop at 23 hours.
+- [Vercel Git deployment controls](https://vercel.com/docs/project-configuration/git-configuration): branch-specific automatic deployment hold.
 
 - [Bland webhook signing](https://docs.bland.ai/tutorials/webhook-signing): signature verification for inbound webhook payloads.
 - [Bland inbound numbers](https://docs.bland.ai/api-v1/get/inbound) and [call records](https://docs.bland.ai/api-v1/get/calls): account number checks and call duration units.

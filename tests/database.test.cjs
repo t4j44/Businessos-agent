@@ -259,3 +259,68 @@ test('human handoff is retry-safe, keeps identity unverified and atomically stop
   assert.equal((await request(a,'ffffffff-ffff-4fff-8fff-ffffffffffff')).outcome,'requested');
   assert.equal((await resolve()).outcome,'conflict');
 });
+
+test('booking and notification jobs commit together, isolate tenants, and reclaim only expired leases', async () => {
+  const create=async()=> (await db.query("SELECT request_appointment($1,'10101010-1010-4010-8010-101010101010',$2,$3) result",[a,'f'.repeat(64),JSON.stringify({customer_name:'Outbox test',customer_email:'outbox@example.test',requested_date:'2026-11-05'})])).rows[0].result;
+  const first=await create();await create();
+  let jobs=(await db.query('SELECT * FROM scheduler_outbox WHERE appointment_id=$1 ORDER BY kind',[first.appointment.id])).rows;
+  assert.equal(jobs.length,2);
+  const claim=async(client,id)=>(await db.query('SELECT claim_scheduler_delivery($1,$2) item',[client,id])).rows[0].item;
+  assert.equal(await claim(b,jobs[0].id),null);
+  const lease=await claim(a,jobs[0].id);assert.ok(lease.lease_id);
+  assert.equal(await claim(a,jobs[0].id),null);
+  await db.query("UPDATE scheduler_outbox SET lease_until=now()-interval '1 minute' WHERE id=$1",[jobs[0].id]);
+  const reclaimed=await claim(a,jobs[0].id);assert.notEqual(reclaimed.lease_id,lease.lease_id);
+  const prepare=async(token,payload)=>(await db.query('SELECT prepare_scheduler_delivery($1,$2,$3,$4) email',[a,jobs[0].id,token,JSON.stringify(payload)])).rows[0].email;
+  assert.equal(await prepare(lease.lease_id,{to:'wrong@example.test'}),null);
+  assert.deepEqual(await prepare(reclaimed.lease_id,{to:'right@example.test'}),{to:'right@example.test'});
+  assert.deepEqual(await prepare(reclaimed.lease_id,{to:'changed@example.test'}),{to:'right@example.test'});
+  assert.equal((await db.query('SELECT begin_scheduler_send($1,$2,$3) ok',[a,jobs[0].id,reclaimed.lease_id])).rows[0].ok,true);
+  await assert.rejects(db.query("SELECT finish_scheduler_delivery($1,$2,$3,'accepted',NULL,NULL)",[a,jobs[0].id,reclaimed.lease_id]),/Invalid delivery result/);
+  assert.equal((await db.query("SELECT finish_scheduler_delivery($1,$2,$3,'accepted','receipt-one',NULL) ok",[a,jobs[0].id,lease.lease_id])).rows[0].ok,false);
+  assert.equal((await db.query("SELECT finish_scheduler_delivery($1,$2,$3,'accepted','receipt-one',NULL) ok",[a,jobs[0].id,reclaimed.lease_id])).rows[0].ok,true);
+  assert.equal((await db.query('SELECT retry_scheduler_delivery($1,$2) ok',[a,jobs[0].id])).rows[0].ok,false);
+  await db.exec(`SET ROLE authenticated; SET request.jwt.claim.sub='${userA}';`);
+  try {
+    await assert.rejects(db.query('SELECT * FROM scheduler_outbox'),/permission denied/);
+    await assert.rejects(db.query('SELECT claim_scheduler_delivery($1,$2)',[a,jobs[0].id]),/permission denied/);
+  } finally { await db.exec('RESET ROLE'); }
+});
+
+test('expired provider protection and obsolete booking versions stop automatic delivery',async()=>{
+  const appointment=(await db.query("INSERT INTO appointments(client_id,customer_name,customer_email,status) VALUES($1,'Expired job','expiry@example.test','pending') RETURNING id",[a])).rows[0].id;
+  const job=(await db.query("SELECT id FROM scheduler_outbox WHERE appointment_id=$1 AND kind='request_received'",[appointment])).rows[0].id;
+  await db.query("UPDATE scheduler_outbox SET first_attempt_at=now()-interval '24 hours' WHERE id=$1",[job]);
+  assert.equal((await db.query('SELECT claim_scheduler_delivery($1,$2) item',[a,job])).rows[0].item,null);
+  assert.equal((await db.query('SELECT status FROM scheduler_outbox WHERE id=$1',[job])).rows[0].status,'review');
+  assert.equal((await db.query('SELECT retry_scheduler_delivery($1,$2) ok',[a,job])).rows[0].ok,false);
+  await db.query("SELECT confirm_appointment($1,$2,'2026-11-06','09:00',30)",[a,appointment]);
+  const confirmation=(await db.query("SELECT * FROM scheduler_outbox WHERE appointment_id=$1 AND kind='confirmation'",[appointment])).rows[0];
+  const lease=(await db.query('SELECT claim_scheduler_delivery($1,$2) item',[a,confirmation.id])).rows[0].item;
+  await db.query('SELECT prepare_scheduler_delivery($1,$2,$3,$4)',[a,confirmation.id,lease.lease_id,JSON.stringify({to:'expiry@example.test'})]);
+  await db.query("SELECT confirm_appointment($1,$2,'2026-11-06','10:00',30)",[a,appointment]);
+  assert.equal((await db.query('SELECT begin_scheduler_send($1,$2,$3) ok',[a,confirmation.id,lease.lease_id])).rows[0].ok,false);
+  assert.equal((await db.query("SELECT count(*)::int n FROM scheduler_outbox WHERE appointment_id=$1 AND kind='confirmation'",[appointment])).rows[0].n,2);
+});
+
+test('reminders use each business timezone, enqueue once, and mark sent only after a receipt',async()=>{
+  await db.query("UPDATE clients SET timezone='Pacific/Kiritimati' WHERE id=$1",[a]);
+  const date=(await db.query("SELECT ((now() AT TIME ZONE 'Pacific/Kiritimati')::date+1)::text AS due_date")).rows[0].due_date;
+  const row=(await db.query("INSERT INTO appointments(client_id,customer_email,status,confirmed_date,confirmed_time) VALUES($1,'reminder@example.test','confirmed',$2,'10:00') RETURNING id",[a,date])).rows[0];
+  await db.query('SELECT queue_scheduler_reminders()');await db.query('SELECT queue_scheduler_reminders()');
+  const jobs=(await db.query("SELECT * FROM scheduler_outbox WHERE appointment_id=$1 AND kind='reminder'",[row.id])).rows;
+  assert.equal(jobs.length,1);assert.equal(jobs[0].snapshot.timezone,'Pacific/Kiritimati');
+  assert.equal((await db.query('SELECT reminder_sent FROM appointments WHERE id=$1',[row.id])).rows[0].reminder_sent,false);
+  const lease=(await db.query('SELECT claim_scheduler_delivery($1,$2) item',[a,jobs[0].id])).rows[0].item;
+  await db.query('SELECT prepare_scheduler_delivery($1,$2,$3,$4)',[a,jobs[0].id,lease.lease_id,JSON.stringify({to:'reminder@example.test'})]);
+  await db.query('SELECT begin_scheduler_send($1,$2,$3)',[a,jobs[0].id,lease.lease_id]);
+  await db.query("SELECT finish_scheduler_delivery($1,$2,$3,'accepted','reminder-receipt',NULL)",[a,jobs[0].id,lease.lease_id]);
+  assert.equal((await db.query('SELECT reminder_sent FROM appointments WHERE id=$1',[row.id])).rows[0].reminder_sent,true);
+  await db.query("UPDATE clients SET timezone='UTC' WHERE id=$1",[a]);
+});
+
+test('delivery dispatch gives a second tenant a turn despite the first tenant backlog',async()=>{
+  const candidates=(await db.query('SELECT * FROM scheduler_delivery_candidates(2)')).rows;
+  assert.equal(candidates.length,2);
+  assert.equal(new Set(candidates.map(row=>row.client_id)).size,2);
+});

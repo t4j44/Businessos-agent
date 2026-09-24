@@ -8,6 +8,7 @@ import {
   Spinner, ErrorMessage, SuccessMessage, postJSON, getJSON,
 } from '@/components/dashboard/AgentState';
 import { SkeletonRow } from '@/components/ui/Skeleton';
+import { SchedulerDeliveries } from '@/components/dashboard/SchedulerDeliveries';
 
 type Appointment = {
   id: string;
@@ -165,6 +166,7 @@ export default function SchedulerPage() {
         }
       />
 
+      <SchedulerDeliveries />
       {/* ── Booking request form ─────────────────────────────────────────── */}
       {showForm && (
         <form

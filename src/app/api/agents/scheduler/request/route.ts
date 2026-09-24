@@ -4,20 +4,12 @@ import { createHash } from 'node:crypto';
 import { isDate, isUuid, readJsonBody, ValidationError } from '@/lib/validation';
 import { normalizePhone } from '@/lib/bland';
 import { logAgentRun } from '@/lib/log';
-import {
-  getSchedulerContext,
-  sendRequestReceivedEmail,
-  sendClientAlertEmail,
-  formatWhen,
-} from '@/lib/appointments';
-import type { SendEmailResult } from '@/lib/resend';
+import { formatWhen } from '@/lib/appointments';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
 
 // POST /api/agents/scheduler/request
 //
-// Takes a booking request off the client's website, records it as pending, then
-// tells both sides: the customer that it landed, the business that it needs
-// confirming.
+// Authenticated owner intake; saves the request and durable notification jobs.
 export async function POST(req: Request) {
   let clientId: string;
   try {
@@ -62,32 +54,10 @@ export async function POST(req: Request) {
       emails:{customer:{sent:false,skipped:'Existing request; notifications not repeated.'},client:{sent:false,skipped:'Existing request; notifications not repeated.'}} });
     if (!appointment) return NextResponse.json({ error:'Booking request could not be saved.' },{status:503});
 
-    const ctx = await getSchedulerContext(client_id);
-
-    // Both emails are attempted regardless of whether the other succeeds — a
-    // bounced customer receipt must not stop the business being told.
-    const [customerResult, clientResult] = await Promise.all([
-      customer_email
-        ? sendRequestReceivedEmail({
-            ctx,
-            customerName: customer_name,
-            customerEmail: customer_email,
-            requestedDate: requested_date,
-            requestedTime: requested_time,
-            serviceType: service_type,
-          })
-        : Promise.resolve<SendEmailResult>({ sent: false, skipped: 'No customer_email provided.' }),
-      sendClientAlertEmail({
-        ctx,
-        customerName: customer_name,
-        customerEmail: customer_email,
-        customerPhone: customer_phone,
-        requestedDate: requested_date,
-        requestedTime: requested_time,
-        serviceType: service_type,
-        notes,
-      }),
-    ]);
+    // Migration 036 queues both notifications in the booking transaction.
+    // Sending happens through the leased delivery worker, never inside intake.
+    const customerResult = { sent: false, queued: Boolean(customer_email) };
+    const clientResult = { sent: false, queued: true };
 
     await logAgentRun({
       client_id,
@@ -100,9 +70,7 @@ export async function POST(req: Request) {
         service_type: service_type || null,
         customer_notified: customerResult.sent,
         client_notified: clientResult.sent,
-        email_issues: [customerResult, clientResult]
-          .map((r) => r.error || r.skipped)
-          .filter(Boolean),
+        notifications_queued: true,
       },
     });
 

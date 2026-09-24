@@ -73,7 +73,7 @@ export async function sendRequestReceivedEmail(params: {
   requestedDate?: string | null
   requestedTime?: string | null
   serviceType?: string | null
-}): Promise<SendEmailResult> {
+}, deliver = sendBrandedEmail): Promise<SendEmailResult> {
   const { ctx, customerName, customerEmail, requestedDate, requestedTime, serviceType } = params
   const name = (customerName || '').trim() || 'there'
   const when = formatWhen(requestedDate, requestedTime)
@@ -84,7 +84,7 @@ export async function sendRequestReceivedEmail(params: {
   const html =
     WRAP_OPEN +
     `<p>Hi ${escapeHtml(name)},</p>` +
-    `<p>Thanks for getting in touch with ${escapeHtml(ctx.companyName)} — we've got your request and someone will confirm it within 2 hours.</p>` +
+    `<p>Thanks for getting in touch with ${escapeHtml(ctx.companyName)} — we've received your request for the business to review.</p>` +
     detailTable(rows) +
     `<p>This isn't a confirmed booking just yet. We'll email you again as soon as it's locked in.</p>` +
     (ctx.contactPhone
@@ -97,7 +97,7 @@ export async function sendRequestReceivedEmail(params: {
     `Hi ${name},`,
     '',
     `Thanks for getting in touch with ${ctx.companyName} — we've got your request and`,
-    'someone will confirm it within 2 hours.',
+    'the business will review your request.',
     '',
     `Requested time: ${when}`,
     serviceType ? `Service: ${serviceType}` : '',
@@ -112,7 +112,7 @@ export async function sendRequestReceivedEmail(params: {
     .filter((l) => l !== '')
     .join('\n')
 
-  return sendBrandedEmail({
+  return deliver({
     clientId: ctx.clientId,
     transactional: true,
     from_name: ctx.companyName,
@@ -134,7 +134,7 @@ export async function sendClientAlertEmail(params: {
   requestedTime?: string | null
   serviceType?: string | null
   notes?: string | null
-}): Promise<SendEmailResult> {
+}, deliver = sendBrandedEmail): Promise<SendEmailResult> {
   const { ctx, customerName, customerEmail, customerPhone, requestedDate, requestedTime, serviceType, notes } =
     params
 
@@ -155,7 +155,7 @@ export async function sendClientAlertEmail(params: {
     `<p><strong>${escapeHtml(name)}</strong> has requested an appointment.</p>` +
     detailTable(rows) +
     (notes ? `<p><strong>Notes:</strong> ${escapeHtml(notes)}</p>` : '') +
-    `<p>They've been told someone will confirm within 2 hours.</p>` +
+    `<p>This request is awaiting your review and confirmation.</p>` +
     WRAP_CLOSE
 
   const text = [
@@ -167,12 +167,12 @@ export async function sendClientAlertEmail(params: {
     customerPhone ? `Phone: ${customerPhone}` : '',
     notes ? `\nNotes: ${notes}` : '',
     '',
-    "They've been told someone will confirm within 2 hours.",
+    'This request is awaiting your review and confirmation.',
   ]
     .filter((l) => l !== '')
     .join('\n')
 
-  return sendBrandedEmail({
+  return deliver({
     clientId: ctx.clientId,
     transactional: true,
     from_name: `${ctx.companyName} Bookings`,
@@ -193,7 +193,7 @@ export async function sendConfirmationEmail(params: {
   confirmedDate?: string | null
   confirmedTime?: string | null
   serviceType?: string | null
-}): Promise<SendEmailResult> {
+}, deliver = sendBrandedEmail): Promise<SendEmailResult> {
   const { ctx, customerName, customerEmail, confirmedDate, confirmedTime, serviceType } = params
   const name = (customerName || '').trim() || 'there'
   const when = formatWhen(confirmedDate, confirmedTime)
@@ -239,7 +239,7 @@ export async function sendConfirmationEmail(params: {
     .filter((l) => l !== '')
     .join('\n')
 
-  return sendBrandedEmail({
+  return deliver({
     clientId: ctx.clientId,
     transactional: true,
     from_name: ctx.companyName,
@@ -273,7 +273,7 @@ export async function sendReminderEmail(params: {
   customerEmail: string
   when: string
   serviceType?: string | null
-}): Promise<SendEmailResult> {
+}, deliver = sendBrandedEmail): Promise<SendEmailResult> {
   const { ctx, customerName, customerEmail, when, serviceType } = params
   const name = (customerName || '').trim() || 'there'
 
@@ -313,7 +313,7 @@ export async function sendReminderEmail(params: {
     .filter((l) => l !== '')
     .join('\n')
 
-  return sendBrandedEmail({
+  return deliver({
     clientId: ctx.clientId,
     transactional: true,
     from_name: ctx.companyName,

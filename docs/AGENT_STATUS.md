@@ -1,12 +1,12 @@
 # Business OS: 21-agent status matrix
 
-Updated 2026-09-19. Status describes inspected local code, not a deployed service. "Partial" means working components exist but the complete execution contract is unfinished. The numbering follows the original PRD; Brand Scout is a shared foundation distinct from agent 14.
+Updated 2026-09-25. Status describes inspected local code, not a deployed service. "Partial" means working components exist but the complete execution contract is unfinished. The numbering follows the original PRD; Brand Scout is a shared foundation distinct from agent 14.
 
 | # | Agent | Existing evidence | Executed improvements | Remaining release gate | Status |
 |---|---|---|---|---|---|
 | 1 | Hunter | `api/agents/hunter/{prospect,enrich,generate,config}`; Hunter dashboard; Overture import script | Safer shared website fetching and explicit tenant foundations | Dataset freshness/attribution, lead deduplication, source evidence, approved outreach, consent/suppression, provider receipts, full runtime budgets | Partial |
 | 2 | Receptionist | Public widget/config/chat and owner preview | Approved public retrieval, durable history, quotas, pause control, owner inbox, explicit human-help intake, retry-safe resolution, AI pause while help is pending, mobile widget fixes | Customer identity verification, team notifications/assignment, two-way human messaging, live model evaluation, usage plan tuning | Local workflow; live verification pending |
-| 3 | AI Scheduler | Request, confirm, list routes and dashboard | Atomic tenant-scoped intake and customer linkage, request retry keys, conflict-checked confirmation, retry-safe notification behavior | Timezones, opening hours, multiple resources, calendar sync, notification outbox/recovery, cancel/reschedule | Local manual-calendar workflow |
+| 3 | AI Scheduler | Request, confirm, list routes and dashboard | Atomic intake, conflict checks, migration 036 email outbox, frozen retry payloads, receipts/reconciliation, owner recovery and timezone reminders | Hosted delivery/worker schedule, opening hours and exact-time timezone validation, calendar sync, cancel/reschedule, in-flight send races; SMS delivery disabled pending recovery | Local workflow; hosted acceptance blocked |
 | 4 | Call Center Bot | Call scripts, call dashboard, Bland webhook | Signed verified-number ingestion, durable receipts, seconds conversion, pending analysis, leased analysis/owner follow-up, manual analyze control, guarded cron worker | Account-number provisioning, prompt publish/version confirmation, real test call, recording/consent configuration, transfer and notification delivery | Local ingestion/analysis; provider setup required |
 | 5 | Sales Agent | Leads and outreach surfaces; shared contacts | Shared tenant and identity foundations only | Distinct sales workflow, source-bound recommendations, pipeline state changes, approval and execution receipts | Planned integration |
 | 6 | Invoice Chase | Generator, batch route, invoices dashboard, email helper | Stored invoice facts, durable unique drafts and leases; initial invoices remain drafts without email acceptance; payment placeholders removed; state transitions reject unsafe retries; no score penalties or delivery advance on generation | Preview/approval UX, payment-account verification, approved chase delivery, suppression/consent, outbox and retry-safe invoice creation | Chase drafts; initial email path locally tested |
@@ -32,8 +32,12 @@ Website text and visual extraction, owner-editable brand profile, embeddings and
 
 ## Order of work
 
+Checkpoint `35dea56` was pushed to `codex/staging-pilot`; [its GitHub checks passed](https://github.com/t4j44/Businessos-agent/actions/runs/35759595561). The configured Supabase access check returned HTTP 401 again on 2026-09-25 (Dhaka). No hosted migrations, restricted deployment, authenticated walkthrough or live voice call has been verified. Nylas and Bland credentials remain absent.
+
+**Do not implement new planned agents until the full two-tenant hosted acceptance matrix passes.** See PILOT_RUNBOOK.md for the outstanding gates.
+
 1. Prove one business's knowledge → inquiry → customer → appointment → owner follow-up path, with two test tenants and failures/retries included.
 2. Close voice provisioning, owner notifications, delivery recovery and runtime adoption before unattended pilot operation. Validate the new inbox/handoff path with actual authenticated staging accounts.
 3. Finish invoice and review delivery with approved payload versions, provider receipts and reconciliation.
 4. Evaluate BI definitions and research sources against real owner decisions.
-5. Add the planned agents only after their inputs and execution contracts are defined. No agent is marked complete solely because it has a prompt or endpoint.
+5. Add planned agents only after the full hosted matrix passes and their inputs/execution contracts are defined. No agent is marked complete solely because it has a prompt or endpoint.
