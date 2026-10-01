@@ -7,6 +7,7 @@ import { logAgentRun } from '@/lib/log'
 import { isUuid } from '@/lib/validation'
 import { industrySubreddits } from '@/lib/subreddits'
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
+import { serverError, serverErrorPayload } from '@/lib/server-error'
 
 // Audience Intelligence — finds real conversations from the client's ICP on
 // Reddit and the open web, then extracts the psychology behind them: the exact
@@ -430,16 +431,19 @@ export async function runAudienceIntelligence(params: {
     }
   } catch (err: any) {
     console.error('[audience] run failed:', err)
+    // One reference for this failure: shown in the owner's activity feed via
+    // output_summary, returned to the caller, and logged with the full error.
+    const failure = serverErrorPayload(err, 'agents/intelligence/audience')
 
     await logAgentRun({
       client_id,
       agent_type: 'audience_intelligence',
       status: 'failed',
-      output_summary: err?.message || String(err),
-      metadata: { industry, keywords: keywords.length },
+      output_summary: failure.error,
+      metadata: { industry, keywords: keywords.length, error: err?.message || String(err) },
     })
 
-    return { status: 500, body: { error: err?.message || String(err) } }
+    return { status: 500, body: failure }
   }
 }
 
@@ -462,6 +466,6 @@ export async function POST(req: Request) {
     return NextResponse.json(result, { status })
   } catch (err: any) {
     console.error('[audience] POST failed:', err)
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
+    return serverError(err, 'agents/intelligence/audience')
   }
 }

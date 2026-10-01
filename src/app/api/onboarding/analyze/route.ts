@@ -4,6 +4,7 @@ import { readWebsite, normalizeUrl } from '@/lib/scraper';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireUser, authErrorResponse } from '@/lib/auth-guard';
 import { ensureClientForUser, ClientWriteError } from '@/lib/onboarding-client';
+import { serverErrorMessage } from '@/lib/server-error';
 
 // Reads the caller's website and writes the first brand profile.
 //
@@ -211,7 +212,9 @@ export async function POST(req: Request) {
         controller.close();
       } catch (err: any) {
         console.error('[onboarding/analyze] POST failed:', err);
-        fail(err?.message || String(err));
+        // A streamed error event, not a 500, but it must not carry a raw
+        // database or provider message to the browser either.
+        fail(serverErrorMessage(err, 'onboarding/analyze'));
       }
     },
   });

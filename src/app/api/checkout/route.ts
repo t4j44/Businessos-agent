@@ -2,6 +2,7 @@ import { createRouteClient } from '@/lib/supabase-route';
 import { NextResponse } from 'next/server';
 import { getStripe, getOrCreateStripeCustomer, PLAN_TIERS, billingOrigin } from '@/lib/stripe';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 export async function POST(req: Request) {
   let clientId: string;
@@ -67,6 +68,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ checkout_url: checkoutSession.url });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return serverError(err, 'checkout');
   }
 }

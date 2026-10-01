@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getSessionClient } from '@/lib/session';
+import { serverError } from '@/lib/server-error'
 
 // Client identity for the dashboard. This is the endpoint the pages call to
 // learn which client they are operating on, so it resolves from the signed-in
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error('[dashboard/client] query failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'dashboard/client');
     }
 
     // Whether Brand Scout has ever produced a profile for this client. The
@@ -60,6 +61,6 @@ export async function GET(req: Request) {
     });
   } catch (err: any) {
     console.error('[dashboard/client] GET failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'dashboard/client');
   }
 }

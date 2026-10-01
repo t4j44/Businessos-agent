@@ -6,6 +6,7 @@ import { logAgentRun } from '@/lib/log'
 import { isUuid } from '@/lib/validation'
 import { industrySubreddits } from '@/lib/subreddits'
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
+import { serverError, serverErrorPayload } from '@/lib/server-error'
 
 // Trend Radar — reads what is actually hot in the client's communities right
 // now, cross-references it with trending industry news, and decides what is
@@ -369,16 +370,19 @@ export async function runTrendRadar(params: {
     }
   } catch (err: any) {
     console.error('[trends] run failed:', err)
+    // One reference for this failure: shown in the owner's activity feed via
+    // output_summary, returned to the caller, and logged with the full error.
+    const failure = serverErrorPayload(err, 'agents/intelligence/trends')
 
     await logAgentRun({
       client_id,
       agent_type: 'trend_radar',
       status: 'failed',
-      output_summary: err?.message || String(err),
-      metadata: { industry, keywords: keywords.length },
+      output_summary: failure.error,
+      metadata: { industry, keywords: keywords.length, error: err?.message || String(err) },
     })
 
-    return { status: 500, body: { error: err?.message || String(err) } }
+    return { status: 500, body: failure }
   }
 }
 
@@ -400,6 +404,6 @@ export async function POST(req: Request) {
     return NextResponse.json(result, { status })
   } catch (err: any) {
     console.error('[trends] POST failed:', err)
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
+    return serverError(err, 'agents/intelligence/trends')
   }
 }

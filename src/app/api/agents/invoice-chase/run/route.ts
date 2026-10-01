@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { runInvoiceChase } from '../route';
 import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 // Batch entry point used by the Vercel cron (/api/cron/invoice-chase).
 //
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error('[invoice-chase/run] query failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'agents/invoice-chase/run');
     }
 
     const results: any[] = [];
@@ -77,6 +78,6 @@ export async function POST(req: Request) {
       drafted: results.filter(r => r.status === 'drafted').length, sent: 0, results });
   } catch (err: any) {
     console.error('[invoice-chase/run] POST failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'agents/invoice-chase/run');
   }
 }

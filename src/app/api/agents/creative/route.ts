@@ -3,6 +3,7 @@ import { callAI, MODELS, parseJSON } from '@/lib/ai';
 import { supabaseAdmin, getClientContext } from '@/lib/supabase';
 import { logAgentRun } from '@/lib/log';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
+import { serverError } from '@/lib/server-error'
 
 // Three platforms are generated in parallel, and a 30-post batch is a long
 // completion. The default serverless ceiling cuts that off mid-JSON.
@@ -341,7 +342,7 @@ export async function POST(req: Request) {
           output_summary: 'Generated posts but could not store the calendar',
           metadata: { error: error.message, platforms },
         });
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return serverError(error, 'agents/creative');
       }
       inserted = data?.length ?? 0;
     }
@@ -398,7 +399,7 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('[creative] POST failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'agents/creative');
   }
 }
 
@@ -442,7 +443,7 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error('[creative] GET failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'agents/creative');
     }
 
     const posts = data || [];
@@ -458,6 +459,6 @@ export async function GET(req: Request) {
     });
   } catch (err: any) {
     console.error('[creative] GET failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'agents/creative');
   }
 }

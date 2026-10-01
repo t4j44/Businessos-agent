@@ -4,6 +4,7 @@ import { logAgentRun } from '@/lib/log';
 import { formatWhen } from '@/lib/appointments';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 import { isDate, isUuid, normalizeTime, readJsonBody, ValidationError } from '@/lib/validation';
+import { serverError } from '@/lib/server-error'
 
 // POST /api/agents/scheduler/confirm
 //
@@ -119,6 +120,6 @@ export async function POST(req: Request) {
   } catch (err: any) {
     if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error('[scheduler/confirm] POST failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'agents/scheduler/confirm');
   }
 }

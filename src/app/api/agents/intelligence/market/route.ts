@@ -5,6 +5,7 @@ import { braveSearch, type BraveResult } from '@/lib/brave'
 import { logAgentRun } from '@/lib/log'
 import { isUuid } from '@/lib/validation'
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
+import { serverError, serverErrorPayload } from '@/lib/server-error'
 
 // Market Intelligence — reads competitor sites (Jina, via lib/scraper) and
 // searches for their recent news (Brave), then has the model turn both into a
@@ -230,6 +231,9 @@ export async function runMarketIntelligence(params: {
     }
   } catch (err: any) {
     console.error('[market-intelligence] run failed:', err)
+    // One reference for this failure: shown in the owner's activity feed via
+    // output_summary, returned to the caller, and logged with the full error.
+    const failure = serverErrorPayload(err, 'agents/intelligence/market')
 
     // Recorded as a failed run so the activity feed and cost reporting show
     // the attempt rather than silently skipping the day.
@@ -237,11 +241,11 @@ export async function runMarketIntelligence(params: {
       client_id,
       agent_type: 'market_intelligence',
       status: 'failed',
-      output_summary: err?.message || String(err),
-      metadata: { competitors_analysed: competitors.length, run_type: runType },
+      output_summary: failure.error,
+      metadata: { competitors_analysed: competitors.length, run_type: runType, error: err?.message || String(err) },
     })
 
-    return { status: 500, body: { error: err?.message || String(err) } }
+    return { status: 500, body: failure }
   }
 }
 
@@ -264,6 +268,6 @@ export async function POST(req: Request) {
     return NextResponse.json(result, { status })
   } catch (err: any) {
     console.error('[market-intelligence] POST failed:', err)
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
+    return serverError(err, 'agents/intelligence/market')
   }
 }

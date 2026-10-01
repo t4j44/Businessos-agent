@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 import { storeChunk } from '@/lib/embeddings';
 import { readJsonBody, ValidationError } from '@/lib/validation';
+import { serverError } from '@/lib/server-error'
 
 // Saves text the user has read and approved into brand memory.
 //
@@ -119,6 +120,6 @@ export async function POST(req: Request) {
   } catch (err: any) {
     if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error('[onboarding/knowledge] POST failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'onboarding/knowledge');
   }
 }

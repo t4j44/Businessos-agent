@@ -6,6 +6,7 @@ import { logAgentRun } from '@/lib/log';
 import { createEmbedding, retrieveContext } from '@/lib/embeddings';
 import { extractVisualBrand, type VisualBrand } from '@/lib/visual-brand';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 // ACTIVE_MODEL in src/lib/ai.ts is a module constant, not an environment
 // variable. Honour an env override here for parity with the spec, falling back
@@ -460,9 +461,6 @@ export async function POST(req: Request) {
     return NextResponse.json(body, { status });
   } catch (err: any) {
     console.error('[brand-scout] POST failed:', err);
-    return NextResponse.json(
-      { success: false, error: err?.message || String(err) },
-      { status: 500 },
-    );
+    return serverError(err, 'agents/brand-scout', { success: false });
   }
 }

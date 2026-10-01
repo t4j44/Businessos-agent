@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 const DAYS = 7;
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error('[call-center/analyze] query failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'agents/call-center/analyze');
     }
 
     const calls = (rows || []).map((r) => ({
@@ -115,6 +116,6 @@ export async function GET(req: Request) {
     });
   } catch (err: any) {
     console.error('[call-center/analyze] GET failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'agents/call-center/analyze');
   }
 }

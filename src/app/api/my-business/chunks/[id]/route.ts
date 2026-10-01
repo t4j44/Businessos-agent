@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 import { readJsonBody, ValidationError, isUuid } from '@/lib/validation';
 import { logAgentRun } from '@/lib/log';
+import { serverError } from '@/lib/server-error'
 
 // Publishing knowledge is a deliberate owner action; customer and research
 // memory can never be exposed by changing this flag.
@@ -59,12 +60,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }
       console.error('[my-business/chunks] deactivate failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'my-business/chunks/[id]');
     }
 
     return NextResponse.json({ deleted: true, id: data.id });
   } catch (err: any) {
     console.error('[my-business/chunks] DELETE failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'my-business/chunks/[id]');
   }
 }

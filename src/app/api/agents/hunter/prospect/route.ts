@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { logAgentRun } from '@/lib/log'
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 // Hunter Prospect — the first step of the lead pipeline. Discovers local
 // businesses from the locally-held Overture Maps Places dataset.
@@ -294,13 +295,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(err.payload, { status: err.status })
     }
 
-    console.error('[hunter/prospect] POST failed:', err)
-    return NextResponse.json(
-      {
-        error: 'Prospect failed',
-        details: err instanceof Error ? err.message : 'unknown',
-      },
-      { status: 500 },
-    )
+    return serverError(err, 'agents/hunter/prospect')
   }
 }

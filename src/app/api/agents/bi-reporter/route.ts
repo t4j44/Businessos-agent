@@ -8,6 +8,7 @@ import { getBusinessMetrics, operationalScore } from '@/lib/metrics';
 import { sanitizeReportHtml } from '@/lib/report-html';
 import { getMondayDateString } from '@/lib/week';
 import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError, serverErrorPayload } from '@/lib/server-error'
 
 function buildSystemPrompt(
   companyName: string,
@@ -155,7 +156,7 @@ export async function runBiReporter(client_id: string, overrideMetrics?: any, we
       output_summary: 'Failed to generate brief',
       metadata: { error: err?.message || String(err) },
     });
-    return { status: 500, body: { success: false, error: err?.message || String(err) } };
+    return { status: 500, body: { success: false, ...serverErrorPayload(err, 'agents/bi-reporter') } };
   }
 
   // ── AFTER ACTING ────────────────────────────────────────────────────────
@@ -245,9 +246,6 @@ export async function POST(req: Request) {
     return NextResponse.json(body, { status });
   } catch (err: any) {
     console.error('[bi-reporter] POST failed:', err);
-    return NextResponse.json(
-      { success: false, error: err?.message || String(err) },
-      { status: 500 },
-    );
+    return serverError(err, 'agents/bi-reporter', { success: false });
   }
 }

@@ -5,6 +5,7 @@ import { createEmbedding } from '@/lib/embeddings'
 import { readWebsite } from '@/lib/scraper'
 import { logAgentRun } from '@/lib/log'
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
+import { serverError, serverErrorPayload } from '@/lib/server-error'
 
 // Hunter — personalised cold outbound.
 //
@@ -281,16 +282,19 @@ export async function runHunterGenerate(params: {
     }
   } catch (err: any) {
     console.error('[hunter] generate failed:', err)
+    // One reference for this failure: shown in the owner's activity feed via
+    // output_summary, returned to the caller, and logged with the full error.
+    const failure = serverErrorPayload(err, 'agents/hunter/generate')
 
     await logAgentRun({
       client_id,
       agent_type: 'hunter',
       status: 'failed',
-      output_summary: err?.message || String(err),
-      metadata: { lead, sequence },
+      output_summary: failure.error,
+      metadata: { lead, sequence, error: err?.message || String(err) },
     })
 
-    return { status: 500, body: { error: err?.message || String(err) } }
+    return { status: 500, body: failure }
   }
 }
 
@@ -312,6 +316,6 @@ export async function POST(req: Request) {
     return NextResponse.json(result, { status })
   } catch (err: any) {
     console.error('[hunter] POST failed:', err)
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
+    return serverError(err, 'agents/hunter/generate')
   }
 }

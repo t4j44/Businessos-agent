@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 // A lead's enrichment state is derived from what the enrichment agent actually
 // wrote back onto the row — there is no separate queue table.
@@ -34,7 +35,7 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error('[dashboard/enrichment] query failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'dashboard/enrichment');
     }
 
     const leads = rows || [];
@@ -82,6 +83,6 @@ export async function GET(req: Request) {
     });
   } catch (err: any) {
     console.error('[dashboard/enrichment] GET failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'dashboard/enrichment');
   }
 }

@@ -6,6 +6,7 @@ import { logAgentRun } from '@/lib/log';
 import { findOrCreateContact, getContactHistory } from '@/lib/contacts';
 import { retrieveContext } from '@/lib/embeddings';
 import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError, serverErrorPayload } from '@/lib/server-error'
 
 const NEUTRAL_TONE =
   'professional, courteous, and clear — like a well-run business communicating respectfully.';
@@ -196,10 +197,7 @@ export async function runInvoiceChase(params: {
         output_summary: 'Failed to generate chase message',
         metadata: { error: err?.message || String(err) },
       });
-      return {
-        status: 500,
-        body: { success: false, error: err?.message || String(err) },
-      };
+      return { status: 500, body: { success: false, ...serverErrorPayload(err, 'agents/invoice-chase') } };
     }
   }
 
@@ -276,9 +274,6 @@ export async function POST(req: Request) {
     return NextResponse.json(resultBody, { status });
   } catch (err: any) {
     console.error('[invoice-chase] POST failed:', err);
-    return NextResponse.json(
-      { success: false, error: err?.message || String(err) },
-      { status: 500 },
-    );
+    return serverError(err, 'agents/invoice-chase', { success: false });
   }
 }

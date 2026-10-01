@@ -5,6 +5,7 @@ import { logAgentRun } from '@/lib/log';
 import { retrieveContext, storeRAGChunk } from '@/lib/embeddings';
 import { findOrCreateContact, logInteraction, updateContactScore } from '@/lib/contacts';
 import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError, serverErrorPayload } from '@/lib/server-error'
 
 const NEUTRAL_TONE =
   'professional, courteous, and clear — like a well-run business responding respectfully.';
@@ -119,10 +120,7 @@ export async function runReputation(params: {
       output_summary: 'Failed to generate review response',
       metadata: { error: err?.message || String(err) },
     });
-    return {
-      status: 500,
-      body: { success: false, error: err?.message || String(err) },
-    };
+    return { status: 500, body: { success: false, ...serverErrorPayload(err, 'agents/reputation') } };
   }
 
   if (review_id) {
@@ -249,9 +247,6 @@ export async function POST(req: Request) {
     return NextResponse.json(resultBody, { status });
   } catch (err: any) {
     console.error('[reputation] POST failed:', err);
-    return NextResponse.json(
-      { success: false, error: err?.message || String(err) },
-      { status: 500 },
-    );
+    return serverError(err, 'agents/reputation', { success: false });
   }
 }

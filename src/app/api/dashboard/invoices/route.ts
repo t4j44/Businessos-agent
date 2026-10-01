@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 // The chase sequence has 5 steps, but the funnel presents Sent → 1..4 → Paid,
 // so step 5 (final notice) is folded into the "Step 4 Call" stage.
@@ -48,7 +49,7 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error('[dashboard/invoices] query failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'dashboard/invoices');
     }
 
     const invoices = (rows || []).map((inv: any) => ({
@@ -129,6 +130,6 @@ export async function GET(req: Request) {
     });
   } catch (err: any) {
     console.error('[dashboard/invoices] GET failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'dashboard/invoices');
   }
 }

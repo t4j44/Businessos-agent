@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { readJsonBody, ValidationError } from '@/lib/validation';
 import { parsePublicUrl } from '@/lib/safe-fetch';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
+import { serverError } from '@/lib/server-error'
 
 // `field` arrives from the browser, so it is checked against an allowlist —
 // otherwise any column on brand_profiles could be overwritten.
@@ -68,7 +69,7 @@ export async function GET(req: Request) {
     });
   } catch (err: any) {
     console.error('[my-business] GET failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'my-business');
   }
 }
 
@@ -100,7 +101,7 @@ export async function PATCH(req: Request) {
 
       if (error) {
         console.error('[my-business] client update failed:', error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return serverError(error, 'my-business');
       }
       return NextResponse.json({ updated: true });
     }
@@ -144,7 +145,7 @@ export async function PATCH(req: Request) {
 
     if (error) {
       console.error('[my-business] update failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'my-business');
     }
 
     if (!updated) return NextResponse.json({ error: 'Create your brand profile first.' }, { status: 404 });
@@ -152,6 +153,6 @@ export async function PATCH(req: Request) {
   } catch (err: any) {
     if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error('[my-business] PATCH failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'my-business');
   }
 }

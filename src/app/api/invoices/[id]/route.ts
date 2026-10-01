@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 import { readJsonBody, isUuid, ValidationError } from '@/lib/validation';
+import { serverError } from '@/lib/server-error'
 
 // PATCH { action: 'pause' | 'resume' | 'mark_paid' }
 //
@@ -60,7 +61,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }
       console.error('[invoices/:id] update failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'invoices/[id]');
     }
 
     if (!data) return NextResponse.json({ error: 'Invoice changed. Refresh before trying again.' }, { status: 409 });
@@ -68,6 +69,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   } catch (err: any) {
     if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error('[invoices/:id] PATCH failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'invoices/[id]');
   }
 }

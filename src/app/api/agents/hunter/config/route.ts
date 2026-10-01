@@ -1,6 +1,7 @@
 import { createRouteClient } from '@/lib/supabase-route';
 import { NextResponse } from 'next/server';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 async function resolveClientId(supabase: Awaited<ReturnType<typeof createRouteClient>>, userId: string) {
   const { data } = await supabase
@@ -36,8 +37,7 @@ export async function GET() {
 
     return NextResponse.json({ config: campaign?.settings_json ?? {} });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return serverError(err, 'agents/hunter/config');
   }
 }
 
@@ -91,7 +91,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, config: body });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return serverError(err, 'agents/hunter/config');
   }
 }

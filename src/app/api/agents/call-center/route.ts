@@ -10,6 +10,7 @@ import {
   updateContactScore,
 } from '@/lib/contacts';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError, serverErrorPayload } from '@/lib/server-error'
 
 const ESCALATION_TRIGGERS = [
   'billing dispute',
@@ -172,7 +173,7 @@ Return ONLY valid JSON:
       output_summary: 'Failed to process call analysis',
       metadata: { error: err?.message || String(err) },
     });
-    return { status: 500, body: { success: false, error: err?.message || String(err) } };
+    return { status: 500, body: { success: false, ...serverErrorPayload(err, 'agents/call-center') } };
   }
 
   if (typeof analysis.summary !== 'string' || !analysis.summary.trim() || !['resolved','escalated','missed'].includes(analysis.outcome)
@@ -294,9 +295,6 @@ export async function POST(req: Request) {
     return NextResponse.json(body, { status });
   } catch (err: any) {
     console.error('[call-center] POST failed:', err);
-    return NextResponse.json(
-      { success: false, error: err?.message || String(err) },
-      { status: 500 },
-    );
+    return serverError(err, 'agents/call-center', { success: false });
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getSessionClient } from '@/lib/session';
+import { serverError } from '@/lib/server-error'
 
 // PATCH /api/settings/update
 //
@@ -54,7 +55,7 @@ export async function PATCH(req: Request) {
 
       if (error) {
         console.error('[settings/update] clients update failed:', error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return serverError(error, 'settings/update');
       }
     }
 
@@ -70,6 +71,6 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('[settings/update] PATCH failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'settings/update');
   }
 }

@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { readWebsite } from '@/lib/scraper'
 import { callAI, MODELS, parseJSON } from '@/lib/ai'
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 // Hunter Enrich — the second pipeline step. Takes a prospected lead, reads its
 // website for a contact address, verifies the domain can actually receive mail,
@@ -377,13 +378,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(err.payload, { status: err.status })
     }
 
-    console.error('[hunter/enrich] POST failed:', err)
-    return NextResponse.json(
-      {
-        error: 'Enrich failed',
-        details: err instanceof Error ? err.message : 'unknown',
-      },
-      { status: 500 },
-    )
+    return serverError(err, 'agents/hunter/enrich')
   }
 }

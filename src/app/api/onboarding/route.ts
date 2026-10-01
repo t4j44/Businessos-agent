@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { runBrandScout } from '@/app/api/agents/brand-scout/route';
 import { requireUser, authErrorResponse } from '@/lib/auth-guard';
 import { ensureClientForUser, ClientWriteError } from '@/lib/onboarding-client';
+import { serverError } from '@/lib/server-error'
 
 // Finalises onboarding: makes sure the caller's client row exists, then runs
 // Brand Scout in-process to enrich the brand profile.
@@ -46,12 +47,11 @@ export async function POST(req: Request) {
         contact_phone,
       }));
     } catch (err) {
+      // ClientWriteError wraps the raw Postgres message, so err.message here
+      // was a database string going straight to the browser.
       const code = err instanceof ClientWriteError ? err.code : null;
       console.error('[onboarding] could not resolve client', code ?? '');
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'Could not save your business details.' },
-        { status: 500 },
-      );
+      return serverError(err, 'onboarding');
     }
 
     if (bodyClientId && bodyClientId !== resolvedClientId) {
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
 
       if (error) {
         console.error(`[onboarding] client read failed (${error.code}):`, error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return serverError(error, 'onboarding');
       }
       websiteUrl = client?.url ?? null;
     }
@@ -122,9 +122,6 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('[onboarding] POST failed:', err);
-    return NextResponse.json(
-      { error: err?.message || String(err) },
-      { status: 500 },
-    );
+    return serverError(err, 'onboarding');
   }
 }

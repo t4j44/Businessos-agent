@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 const MS_DAY = 24 * 60 * 60 * 1000;
 
 // Statuses that mean the lead has been emailed at least once.
@@ -32,7 +33,7 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error('[dashboard/leads] query failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'dashboard/leads');
     }
 
     const leads = (rows || []).map((l: any) => ({
@@ -108,6 +109,6 @@ export async function GET(req: Request) {
     });
   } catch (err: any) {
     console.error('[dashboard/leads] GET failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'dashboard/leads');
   }
 }

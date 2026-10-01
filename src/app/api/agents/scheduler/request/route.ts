@@ -6,6 +6,7 @@ import { normalizePhone } from '@/lib/bland';
 import { logAgentRun } from '@/lib/log';
 import { formatWhen } from '@/lib/appointments';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
+import { serverError } from '@/lib/server-error'
 
 // POST /api/agents/scheduler/request
 //
@@ -87,6 +88,6 @@ export async function POST(req: Request) {
   } catch (err: any) {
     if (err instanceof ValidationError) return NextResponse.json({error:err.message},{status:err.status});
     console.error('[scheduler/request] POST failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'agents/scheduler/request');
   }
 }

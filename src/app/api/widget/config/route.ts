@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase';
+import { serverErrorPayload } from '@/lib/server-error'
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -83,7 +84,11 @@ export async function GET(req: Request) {
       },
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Internal error';
-    return NextResponse.json({ error: msg }, { status: 500, headers: CORS });
+    // Built by hand rather than via serverError() so the CORS headers the
+    // embedded widget needs survive on the error path too.
+    return NextResponse.json(serverErrorPayload(err, 'widget/config'), {
+      status: 500,
+      headers: CORS,
+    });
   }
 }

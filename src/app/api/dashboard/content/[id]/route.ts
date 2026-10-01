@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 const ALLOWED_STATUSES = new Set(['draft', 'scheduled', 'published']);
 
@@ -45,12 +46,12 @@ export async function PATCH(
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }
       console.error('[dashboard/content/:id] update failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'dashboard/content/[id]');
     }
 
     return NextResponse.json({ post: data });
   } catch (err: any) {
     console.error('[dashboard/content/:id] PATCH failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'dashboard/content/[id]');
   }
 }

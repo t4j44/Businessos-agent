@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { PDFParse } from 'pdf-parse';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 // Brand-asset upload for onboarding.
 //
@@ -278,6 +279,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ uploaded, failed });
   } catch (err: any) {
     console.error('[onboarding/upload] POST failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'onboarding/upload');
   }
 }

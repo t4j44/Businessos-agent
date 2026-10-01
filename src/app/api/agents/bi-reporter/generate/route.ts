@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { runBiReporter } from '../route';
 import { requireCronOrSession, authErrorResponse } from '@/lib/auth-guard';
 import { sendBrandedEmail } from '@/lib/resend';
+import { serverError } from '@/lib/server-error'
 
 // sendBrandedEmail needs a plain-text alternative; the brief is generated as
 // HTML only. Good enough for a text/plain part: strip tags, collapse space.
@@ -116,9 +117,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ...body, emailed }, { status: 200 });
   } catch (err: any) {
     console.error('[bi-reporter/generate] POST failed:', err);
-    return NextResponse.json(
-      { error: err?.message || String(err) },
-      { status: 500 },
-    );
+    return serverError(err, 'agents/bi-reporter/generate');
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 // GET /api/dashboard/hunter — the lead pipeline for the Hunter screen.
 //
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error('[dashboard/hunter] query failed:', error.message)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'dashboard/hunter')
     }
 
     const leads = data ?? []
@@ -62,6 +63,6 @@ export async function GET(req: NextRequest) {
     )
   } catch (err: any) {
     console.error('[dashboard/hunter] GET failed:', err)
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
+    return serverError(err, 'dashboard/hunter')
   }
 }

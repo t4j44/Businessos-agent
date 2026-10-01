@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { isUuid, readJsonBody, ValidationError } from '@/lib/validation';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError } from '@/lib/server-error'
 
 // PATCH { action: 'approve' | 'save', response_text? }
 // 'approve' approves a draft for manual publication; it does not publish.
@@ -66,13 +67,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }
       console.error('[reviews/:id] update failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'reviews/[id]');
     }
 
     return NextResponse.json({ updated: true, review: data });
   } catch (err: any) {
     if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error('[reviews/:id] PATCH failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'reviews/[id]');
   }
 }

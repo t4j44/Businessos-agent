@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 import { requireCronOrSession, requireSession, authErrorResponse } from '@/lib/auth-guard';
+import { serverError, serverErrorMessage } from '@/lib/server-error'
 const WEEKS = 12;
 const MS_WEEK = 7 * 24 * 60 * 60 * 1000;
 
@@ -122,7 +123,7 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error('[reputation/analyze] query failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'agents/reputation/analyze');
     }
 
     const rawRows = rows || [];
@@ -247,7 +248,7 @@ export async function GET(req: Request) {
     });
   } catch (err: any) {
     console.error('[reputation/analyze] GET failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'agents/reputation/analyze');
   }
 }
 
@@ -295,7 +296,7 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error('[reputation/analyze] POST query failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'agents/reputation/analyze');
     }
 
     const pending = (rows || []).filter((r: any) => r.review_text && r.star_rating != null);
@@ -317,7 +318,8 @@ export async function POST(req: Request) {
           error: status === 200 ? undefined : body?.error,
         });
       } catch (err: any) {
-        results.push({ review_id: review.id, status: 'error', error: err?.message });
+        // One failed review inside an otherwise 200 batch.
+        results.push({ review_id: review.id, status: 'error', error: serverErrorMessage(err, 'agents/reputation/analyze') });
       }
     }
 
@@ -329,6 +331,6 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('[reputation/analyze] POST failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'agents/reputation/analyze');
   }
 }

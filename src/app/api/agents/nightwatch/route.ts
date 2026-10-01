@@ -9,6 +9,7 @@ import { runTrendRadar } from '../intelligence/trends/route'
 import { runAudienceIntelligence } from '../intelligence/audience/route'
 import { requireCron, authErrorResponse } from '@/lib/auth-guard';
 import { cronHandler, SkipCounter } from '@/lib/cron';
+import { serverError, serverErrorPayload } from '@/lib/server-error'
 
 // Nightwatch — the 2am orchestrator. Runs the three intelligence agents,
 // synthesises what they found, attaches it to this week's brief, and raises an
@@ -388,14 +389,17 @@ export async function runForClient(
     }
   } catch (err: any) {
     console.error('[nightwatch] run failed for', client_id, err)
+    // One reference for this failure: shown in the owner's activity feed via
+    // output_summary, returned to the caller, and logged with the full error.
+    const failure = serverErrorPayload(err, 'agents/nightwatch')
 
     await logAgentRun({
       client_id,
       agent_type: 'nightwatch',
       status: 'failed',
       cost_usd: costAccumulator,
-      output_summary: err?.message || String(err),
-      metadata: { plan_tier },
+      output_summary: failure.error,
+      metadata: { plan_tier, error: err?.message || String(err) },
     })
 
     return {
@@ -403,7 +407,7 @@ export async function runForClient(
       body: {
         client_id,
         success: false,
-        error: err?.message || String(err),
+        ...failure,
         total_cost_usd: Number(costAccumulator.toFixed(6)),
       },
     }
@@ -431,7 +435,7 @@ export async function runNightwatch(params: {
       .eq('status', 'active')
 
     if (error) {
-      return { status: 500, body: { error: error.message } }
+      return { status: 500, body: serverErrorPayload(error, 'agents/nightwatch') }
     }
 
     const list = clients || []
@@ -457,7 +461,7 @@ export async function runNightwatch(params: {
     }
   } catch (err: any) {
     console.error('[nightwatch] orchestration failed:', err)
-    return { status: 500, body: { error: err?.message || String(err) } }
+    return { status: 500, body: serverErrorPayload(err, 'agents/nightwatch') }
   }
 }
 
@@ -477,7 +481,7 @@ export async function POST(req: Request) {
     return NextResponse.json(result, { status })
   } catch (err: any) {
     console.error('[nightwatch] POST failed:', err)
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
+    return serverError(err, 'agents/nightwatch')
   }
 }
 

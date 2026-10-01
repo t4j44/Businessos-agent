@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
+import { serverError } from '@/lib/server-error'
 
 // Header aliases accepted for each lead column, lowercased.
 const COLUMN_ALIASES: Record<string, string[]> = {
@@ -124,7 +125,7 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error('[enrichment/csv-import] insert failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'agents/enrichment/csv-import');
     }
 
     return NextResponse.json({
@@ -133,6 +134,6 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('[enrichment/csv-import] POST failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'agents/enrichment/csv-import');
   }
 }

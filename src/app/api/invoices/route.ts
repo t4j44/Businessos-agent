@@ -3,6 +3,7 @@ import { createInvoice } from '@/lib/invoices';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
 import { readJsonBody, ValidationError } from '@/lib/validation'
+import { serverError } from '@/lib/server-error'
 
 // POST /api/invoices — log a new invoice.
 //
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
   } catch (err: any) {
     if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error('[invoices] POST failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'invoices');
   }
 }
 
@@ -103,7 +104,7 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error('[invoices] GET failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'invoices');
     }
 
     const invoices = data || [];
@@ -116,6 +117,6 @@ export async function GET(req: Request) {
     });
   } catch (err: any) {
     console.error('[invoices] GET failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'invoices');
   }
 }

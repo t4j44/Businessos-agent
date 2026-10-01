@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 import { getBlandClient, normalizePhone } from '@/lib/bland';
+import { serverError } from '@/lib/server-error'
 
 // GET /api/agents/call-center/status?limit=…
 //
@@ -56,7 +57,7 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error('[call-center/status] query failed:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error, 'agents/call-center/status');
     }
 
     return NextResponse.json({
@@ -72,6 +73,6 @@ export async function GET(req: Request) {
     });
   } catch (err: any) {
     console.error('[call-center/status] GET failed:', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return serverError(err, 'agents/call-center/status');
   }
 }
