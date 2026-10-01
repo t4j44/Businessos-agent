@@ -9,10 +9,9 @@ import {
 import * as tokens from '@/lib/design-tokens';
 import { BrandDNACard } from '@/components/dashboard/BrandDNACard';
 import { ErrorMessage, SuccessMessage } from '@/components/dashboard/AgentState';
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { Pending, Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 
-const CLIENT_ID = TEST_CLIENT_ID;
+// No CLIENT_ID constant: every route below derives the tenant from the session.
 const TONE_TYPES = ['formal', 'casual', 'technical'];
 
 const CHUNK_BADGE: Record<string, string> = {
@@ -323,7 +322,7 @@ export default function MyBusinessPage() {
         const res = await fetch('/api/my-business', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ client_id: CLIENT_ID, field, value: edits[field] }),
+          body: JSON.stringify({ field, value: edits[field] }),
         });
         const json = await res.json();
         if (!res.ok) throw new Error(`${field}: ${json?.error || `HTTP ${res.status}`}`);
@@ -345,7 +344,7 @@ export default function MyBusinessPage() {
       const res = await fetch('/api/agents/brand-scout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: data.client.url, client_id: CLIENT_ID }),
+        body: JSON.stringify({ url: data.client.url }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);

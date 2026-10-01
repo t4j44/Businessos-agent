@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard'
 
 // Header aliases accepted for each lead column, lowercased.

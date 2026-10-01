@@ -196,7 +196,9 @@ export default function SettingsPage() {
       const res = await fetch('/api/agents/brand-scout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: website, client_id: clientId }),
+        // No client_id: brand-scout reads only `url` and takes the tenant
+        // from the session.
+        body: JSON.stringify({ url: website }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);

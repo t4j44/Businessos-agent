@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 
-// GET /api/agent-runs?client_id=…&limit=…
+// GET /api/agent-runs?limit=…
+//
+// The tenant comes from the session; any client_id in the query string is
+// ignored.
 //
 // The newest agent runs for one client, feeding the dashboard's live activity
 // feed. This is deliberately a thin read: /api/dashboard/metrics aggregates

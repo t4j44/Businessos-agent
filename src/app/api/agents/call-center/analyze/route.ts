@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 const DAYS = 7;
 const MS_DAY = 24 * 60 * 60 * 1000;

@@ -5,7 +5,6 @@ import { Activity } from 'lucide-react';
 import { StatusPill } from '@/components/dashboard/StatusPill';
 import { ErrorMessage, getJSON } from '@/components/dashboard/AgentState';
 import { normalizeStatus, relativeTime } from '@/lib/agent-catalog';
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { SkeletonRow } from '@/components/ui/Skeleton';
 
 type AgentRun = {
@@ -65,7 +64,9 @@ function formatCost(cost: number | null) {
   return '$' + value.toFixed(2);
 }
 
-export function ActivityFeed({ clientId = TEST_CLIENT_ID }: { clientId?: string }) {
+// Takes no clientId: /api/agent-runs derives the tenant from the session and
+// ignores any client_id in the query string.
+export function ActivityFeed() {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,9 +77,7 @@ export function ActivityFeed({ clientId = TEST_CLIENT_ID }: { clientId?: string 
 
   const load = useCallback(async () => {
     try {
-      const json = await getJSON(
-        '/api/agent-runs?client_id=' + encodeURIComponent(clientId) + '&limit=20',
-      );
+      const json = await getJSON('/api/agent-runs?limit=20');
       setRuns(json.runs || []);
       setError(null);
     } catch (err: any) {
@@ -88,7 +87,7 @@ export function ActivityFeed({ clientId = TEST_CLIENT_ID }: { clientId?: string 
     } finally {
       setLoading(false);
     }
-  }, [clientId]);
+  }, []);
 
   // Poll. Polling pauses while the tab is hidden so a backgrounded dashboard
   // is not firing a request every 10 seconds forever.

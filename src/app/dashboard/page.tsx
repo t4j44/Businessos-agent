@@ -13,7 +13,6 @@ import * as tokens from '@/lib/design-tokens';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { AgentCard } from '@/components/dashboard/AgentCard';
 import { AGENTS, normalizeStatus } from '@/lib/agent-catalog';
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { Pending, SkeletonCard } from '@/components/ui/Skeleton';
@@ -193,7 +192,9 @@ export default function DashboardPage() {
       const res = await fetch('/api/agents/brand-scout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: clientUrl, client_id: clientId }),
+        // No client_id: brand-scout reads only `url` and takes the tenant
+        // from the session.
+        body: JSON.stringify({ url: clientUrl }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
@@ -451,7 +452,7 @@ export default function DashboardPage() {
       </section>
 
       {/* ── Live activity feed ──────────────────────────────────────────── */}
-      {clientId && <ActivityFeed clientId={clientId} />}
+      {clientId && <ActivityFeed />}
 
       {/* ── Top row: 4 clickable metric cards ───────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

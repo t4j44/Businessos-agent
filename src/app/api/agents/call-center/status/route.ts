@@ -3,7 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 import { getBlandClient, normalizePhone } from '@/lib/bland';
 
-// GET /api/agents/call-center/status?client_id=…
+// GET /api/agents/call-center/status?limit=…
+//
+// The tenant comes from the session; any client_id in the query string is
+// ignored.
 //
 // Two things the calls screen cannot work out on its own:
 //   1. whether the telephony provider is configured — BLAND_AI_KEY is a server

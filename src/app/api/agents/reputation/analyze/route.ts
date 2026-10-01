@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { requireCronOrSession, requireSession, authErrorResponse } from '@/lib/auth-guard';
 const WEEKS = 12;
 const MS_WEEK = 7 * 24 * 60 * 60 * 1000;

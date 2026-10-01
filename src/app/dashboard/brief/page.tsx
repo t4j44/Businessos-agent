@@ -9,7 +9,6 @@ import { PageHeader } from '@/components/dashboard/PageHeader';
 import {
   Spinner, ErrorMessage, SuccessMessage, postJSON, getJSON,
 } from '@/components/dashboard/AgentState';
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 
 // Index for /dashboard/brief — the sidebar links here, while the detail view
@@ -43,9 +42,9 @@ export default function WeeklyBriefPage() {
     setGenerateError(null);
     setGenerateSuccess(null);
     try {
-      const json = await postJSON('/api/agents/bi-reporter', {
-        client_id: TEST_CLIENT_ID,
-      });
+      // No client_id: the route derives the tenant from the session and
+      // ignores any client_id in the body.
+      const json = await postJSON('/api/agents/bi-reporter', {});
 
       // The agent hands the finished HTML straight back, so the new brief can
       // be shown immediately rather than waiting on the metrics round-trip.

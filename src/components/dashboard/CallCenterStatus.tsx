@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Phone, PhoneOff, PhoneIncoming, PhoneOutgoing, AlertTriangle } from 'lucide-react';
 import { ErrorMessage, getJSON } from './AgentState';
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 
 type Call = {
   id: string;
@@ -47,9 +46,8 @@ export function CallCenterStatus() {
   useEffect(() => {
     (async () => {
       try {
-        const json = await getJSON(
-          '/api/agents/call-center/status?client_id=' + encodeURIComponent(TEST_CLIENT_ID) + '&limit=5',
-        );
+        // No client_id: the route derives the tenant from the session.
+        const json = await getJSON('/api/agents/call-center/status?limit=5');
         setData(json);
         setError(null);
       } catch (err: any) {

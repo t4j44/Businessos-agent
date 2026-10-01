@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Sparkles, Calendar, Eye, Heart, MessageCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { PlatformIcon, platformTint, platformLabel } from '@/components/dashboard/PlatformIcon';
 import { Spinner, ErrorMessage, SuccessMessage, postJSON } from '@/components/dashboard/AgentState';
-import { TEST_CLIENT_ID } from '@/lib/client-config';
 import { normalizeStatus, relativeTime, AGENTS } from '@/lib/agent-catalog';
 import { StatusPill } from '@/components/dashboard/StatusPill';
 import { MetricCard } from '@/components/ui/MetricCard';
@@ -96,8 +95,8 @@ export default function ContentPage() {
     setGenerateError(null);
     setGenerateSuccess(null);
     try {
+      // No client_id: the route derives the tenant from the session.
       const json = await postJSON('/api/agents/creative', {
-        client_id: TEST_CLIENT_ID,
         platform: GENERATE_PLATFORMS,
         days: GENERATE_DAYS,
       });
