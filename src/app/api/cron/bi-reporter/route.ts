@@ -43,7 +43,13 @@ export const GET = cronHandler({
       // A brief that was generated but not sent is still worth knowing about
       // — usually COMPANY_POSTAL_ADDRESS or the client's contact_email is
       // missing, and sendBrandedEmail refused.
-      if (!briefId) skipped.add('no_brief_generated')
+      //
+      // `skipped` is the route's own reason when it has one. It reports
+      // already_sent for a week this cron has delivered before, which must not
+      // be miscounted as "no brief generated" — on that path no brief is
+      // generated on purpose.
+      if (out?.skipped) skipped.add(String(out.skipped))
+      else if (!briefId) skipped.add('no_brief_generated')
       else if (!emailed) skipped.add('brief_not_emailed')
 
       return { brief_id: briefId, emailed }

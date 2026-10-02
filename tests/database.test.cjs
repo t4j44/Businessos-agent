@@ -25,6 +25,15 @@ before(async () => {
   `);
   const folder = path.resolve(__dirname, '../supabase/migrations');
   for (const file of fs.readdirSync(folder).filter(f => f.endsWith('.sql')).sort()) {
+    if (file.startsWith('037_')) {
+      // Exactly what the duplicate-email bug produced: two sent briefs for one
+      // client and week, plus an unsent one. Inserted BEFORE 037 so the
+      // backfill has to cope with real duplicates.
+      await db.exec("INSERT INTO clients(id,name,status) VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd','Duplicated business','active');");
+      await db.query(
+        "INSERT INTO weekly_briefs(client_id,week_start,brief_html,sent_at) VALUES ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','2026-02-02','<p>First copy</p>','2026-02-02T13:00:00Z'),('dddddddd-dddd-4ddd-8ddd-dddddddddddd','2026-02-02','<p>Second copy</p>','2026-02-02T13:05:00Z'),('dddddddd-dddd-4ddd-8ddd-dddddddddddd','2026-02-09','<p>Never sent</p>',NULL)",
+      );
+    }
     if (file.startsWith('035_')) {
       await db.exec("INSERT INTO clients(id,name,status) VALUES('cccccccc-cccc-4ccc-8ccc-cccccccccccc','Legacy business','active');");
       await db.query("INSERT INTO widget_messages(client_id,session_key,role,content,created_at) VALUES('cccccccc-cccc-4ccc-8ccc-cccccccccccc',$1,'user','Earlier message','2026-08-01'),('cccccccc-cccc-4ccc-8ccc-cccccccccccc',$1,'assistant','Latest legacy reply','2026-08-02')",['c'.repeat(64)]);
@@ -323,4 +332,49 @@ test('delivery dispatch gives a second tenant a turn despite the first tenant ba
   const candidates=(await db.query('SELECT * FROM scheduler_delivery_candidates(2)')).rows;
   assert.equal(candidates.length,2);
   assert.equal(new Set(candidates.map(row=>row.client_id)).size,2);
+});
+
+test('existing duplicate briefs do not block the send record, and an already-emailed week is not re-sent', async () => {
+  const duplicated = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
+  // Nothing was deleted: the duplicate brief rows the bug produced are all
+  // still there, which is why the unique constraint lives on the new table
+  // rather than on weekly_briefs.
+  assert.equal((await db.query('SELECT count(*)::int n FROM weekly_briefs WHERE client_id=$1', [duplicated])).rows[0].n, 3);
+
+  // The backfill collapsed the two sent copies into one record and kept the
+  // earliest delivery, so the current week cannot be emailed a third time.
+  const records = await db.query('SELECT week_start,status,sent_at,last_error FROM weekly_brief_sends WHERE client_id=$1 ORDER BY week_start', [duplicated]);
+  assert.equal(records.rows.length, 1, 'one send record per week, duplicates collapsed');
+  assert.equal(records.rows[0].status, 'sent');
+  assert.equal(new Date(records.rows[0].sent_at).toISOString(), '2026-02-02T13:00:00.000Z', 'the earliest delivery is kept');
+  assert.match(records.rows[0].last_error, /backfilled/);
+
+  // The week with an unsent brief was left alone, so it can still be delivered.
+  assert.equal((await db.query("SELECT claim_weekly_brief_send(p_client_id => $1, p_week_start => '2026-02-09') AS r", [duplicated])).rows[0].r.claimed, true);
+
+  // The already-delivered week is refused.
+  assert.equal((await db.query("SELECT claim_weekly_brief_send(p_client_id => $1, p_week_start => '2026-02-02') AS r", [duplicated])).rows[0].r.reason, 'already_sent');
+
+  // Re-running the backfill statement adds nothing, so the migration is safe to
+  // replay against a database that already has it. Two records exist by now:
+  // the backfilled 2026-02-02 delivery and the 2026-02-09 claim taken above.
+  const before = (await db.query('SELECT count(*)::int n FROM weekly_brief_sends WHERE client_id=$1', [duplicated])).rows[0].n;
+  assert.equal(before, 2);
+  await db.exec(`
+    INSERT INTO weekly_brief_sends (client_id, week_start, status, brief_id, provider_id, idempotency_key, attempts, first_attempt_at, sent_at, last_error)
+    SELECT DISTINCT ON (client_id, week_start) client_id, week_start, 'sent', id, NULL,
+      'brief/' || client_id || '/' || week_start, 1, sent_at, sent_at, 'backfilled'
+    FROM weekly_briefs WHERE sent_at IS NOT NULL AND client_id IS NOT NULL AND week_start IS NOT NULL
+    ORDER BY client_id, week_start, sent_at ASC
+    ON CONFLICT (client_id, week_start) DO NOTHING;
+  `);
+  assert.equal((await db.query('SELECT count(*)::int n FROM weekly_brief_sends WHERE client_id=$1', [duplicated])).rows[0].n, before, 'replaying the backfill inserts nothing');
+  // The 2026-02-02 record was not overwritten by the replay either.
+  assert.match((await db.query("SELECT last_error FROM weekly_brief_sends WHERE client_id=$1 AND week_start='2026-02-02'", [duplicated])).rows[0].last_error, /no provider receipt/);
+
+  // Browser roles cannot read delivery bookkeeping.
+  await db.exec('SET ROLE authenticated');
+  await assert.rejects(db.query('SELECT 1 FROM weekly_brief_sends'), /permission denied/);
+  await db.exec('RESET ROLE');
 });

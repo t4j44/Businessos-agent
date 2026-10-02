@@ -89,6 +89,13 @@ export type BrandedEmailParams = {
    * copy. Everything else is commercial and gets the full CAN-SPAM footer.
    */
   transactional?: boolean
+  /**
+   * Passed to Resend as the Idempotency-Key header. Resend remembers a key for
+   * 24 hours and returns the original receipt instead of sending again, which
+   * is what makes retrying an ambiguous send safe. Must be deterministic for
+   * the thing being sent — not per attempt.
+   */
+  idempotencyKey?: string
 }
 
 export type PreparedEmail = {
@@ -143,9 +150,10 @@ export async function sendBrandedEmail(params: BrandedEmailParams): Promise<Send
     const prepared = await prepareBrandedEmail(params)
     if ('sent' in prepared) return prepared
     const resend = await getResendClient()
-    const { data, error } = await resend.emails.send({
-      ...prepared, replyTo: prepared.reply_to,
-    })
+    const { data, error } = await resend.emails.send(
+      { ...prepared, replyTo: prepared.reply_to },
+      params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : undefined,
+    )
 
     if (error) {
       console.error('[sendBrandedEmail] Resend rejected the send:', error)
