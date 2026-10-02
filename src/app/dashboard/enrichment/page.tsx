@@ -94,10 +94,12 @@ export default function EnrichmentPage() {
       const res = await fetch('/api/agents/enrichment/csv-import', { method: 'POST', body: form });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
-      setUploadMessage(
-        `Imported ${json.imported} lead${json.imported === 1 ? '' : 's'}` +
-        (json.skipped ? ` · ${json.skipped} row${json.skipped === 1 ? '' : 's'} skipped` : ''),
-      );
+      // The route reports duplicates and unusable rows separately: "nothing
+      // imported" reads very differently depending on which it was.
+      const parts = [`Imported ${json.imported} lead${json.imported === 1 ? '' : 's'}`];
+      if (json.skipped_duplicate) parts.push(`${json.skipped_duplicate} already on your list`);
+      if (json.skipped_invalid) parts.push(`${json.skipped_invalid} with no usable name, company or email`);
+      setUploadMessage(parts.join(' · '));
       await load();
     } catch (err: any) {
       setUploadError(err?.message || String(err));
