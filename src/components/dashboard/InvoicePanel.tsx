@@ -42,8 +42,9 @@ const field =
   'w-full rounded-lg border border-line bg-raised px-3 py-2 text-sm text-text placeholder:text-faint focus:border-accent/50 focus:outline-none';
 
 // Create an invoice and see what has been logged. Creation goes through
-// POST /api/invoices, which also sends the first-touch email; the chase ladder
-// picks the row up separately once it goes overdue.
+// POST /api/invoices, which also sends the first-touch email against a provider
+// receipt. Overdue invoices get reminder DRAFTS from Invoice Chase for the owner
+// to review — nothing sends them, so the row does not progress on its own.
 export function InvoicePanel({ onCreated }: { onCreated?: () => void }) {
   const [form, setForm] = useState(EMPTY);
   const [submitting, setSubmitting] = useState(false);

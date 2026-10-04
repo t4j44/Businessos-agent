@@ -47,7 +47,7 @@ function timeAgo(iso: string | null) {
 // ●●●○○ — how far through the 5-step chase sequence this invoice is.
 function ChaseDots({ step }: { step: number }) {
   return (
-    <span className="flex items-center gap-1" title={`Step ${step} of 5`}>
+    <span className="flex items-center gap-1" title={`Reminder ${step} of 5 drafted`}>
       {Array.from({ length: 5 }).map((_, i) => (
         <span
           key={i}
@@ -158,7 +158,7 @@ export default function InvoicesPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-text">
-                No invoices yet. Create your first invoice to start chasing.
+                No invoices yet. Create your first invoice to get started.
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm text-dim">
                 Review invoices, track recorded payments, and prepare follow-up drafts for owner review.
@@ -172,6 +172,20 @@ export default function InvoicesPage() {
 
   return (
     <div className="min-h-screen space-y-5 bg-canvas p-6">
+
+      {/* Invoice Chase writes reminder drafts and nothing sends them. Saying so
+          here is the point: without it the funnel below reads as a record of
+          reminders that went out. */}
+      <div
+        role="status"
+        className="rounded-lg border border-warn/25 bg-warn/10 px-4 py-3 text-sm text-text"
+      >
+        <span className="font-medium">Draft reminders — sending coming soon.</span>{' '}
+        <span className="text-dim">
+          Invoice Chase writes each reminder for your review. Nothing is emailed to your
+          customers yet, so chase a payment through your own channel in the meantime.
+        </span>
+      </div>
 
       {/* ── CREATE + LOGGED INVOICES ────────────────────────────────────── */}
       <InvoicePanel onCreated={load} />
@@ -194,7 +208,7 @@ export default function InvoicesPage() {
           label="Overdue > 7 Days"
           value={s.overdue_over_7_count}
           state={s.overdue_over_7_count > 0 ? 'crit' : undefined}
-          rows={[{ label: 'Action', value: s.overdue_over_7_count === 0 ? 'Clear' : 'Chase now' }]}
+          rows={[{ label: 'Action', value: s.overdue_over_7_count === 0 ? 'Clear' : 'Needs a reminder' }]}
         />
         <MetricCard
           label="Avg Days to Payment"
@@ -237,7 +251,7 @@ export default function InvoicesPage() {
           <div>
             <h2 className={tokens.type.cardTitle}>Collection Funnel</h2>
             <p className="mt-0.5 text-xs text-dim">
-              Where every invoice sits in the chase sequence — click a stage to filter
+              Where every invoice sits in the reminder sequence. Reminders are drafted for your review - sending is coming soon. Click a stage to filter.
             </p>
           </div>
           {stageFilter && (
@@ -291,13 +305,13 @@ export default function InvoicesPage() {
               <span className="h-2 w-2 rounded-full bg-good" /> Paid
             </span>
             <span className="flex items-center gap-1.5 text-xs text-dim">
-              <span className="h-2 w-2 rounded-full bg-warn" /> Chase in progress
+              <span className="h-2 w-2 rounded-full bg-warn" /> Reminder drafted
             </span>
             <span className="flex items-center gap-1.5 text-xs text-dim">
-              <span className="h-2 w-2 rounded-full bg-crit" /> Final step
+              <span className="h-2 w-2 rounded-full bg-crit" /> Final notice drafted
             </span>
             <span className="flex items-center gap-1.5 text-xs text-dim">
-              <span className="h-2 w-2 rounded-full bg-dim" /> Sent, not chased
+              <span className="h-2 w-2 rounded-full bg-dim" /> Invoice sent, no reminder drafted
             </span>
           </div>
         </div>
@@ -353,7 +367,7 @@ export default function InvoicesPage() {
                       )}
                       {!inv.is_paid && <ChaseDots step={inv.chase_step} />}
                       <span className="text-xs text-dim">
-                        Last action: {timeAgo(inv.last_chase_at)}
+                        Last reminder drafted: {timeAgo(inv.last_chase_at)}
                       </span>
                     </div>
                   </div>

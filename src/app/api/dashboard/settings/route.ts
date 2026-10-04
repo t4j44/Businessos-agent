@@ -14,16 +14,20 @@ const NOTIFICATION_DEFAULTS: Record<string, boolean> = {
   approvalNeeded: true,
 };
 
-// "Connected" reflects whether the credential is actually present, not a
-// hardcoded status.
+// `wired` is whether any code actually calls the provider. A key on its own
+// does nothing, and this list used to show a green "Verified connection" for
+// four services no line of code has ever contacted — an owner reasonably read
+// that as "my CRM is syncing". Key presence is reported separately, and an
+// unwired integration can never claim a connection however many keys are set.
 const INTEGRATIONS = [
-  { name: 'HubSpot CRM',     desc: 'Sync leads and deals bidirectionally',     env: 'HUBSPOT_API_KEY'      },
-  { name: 'Stripe',          desc: 'Billing and subscription management',      env: 'STRIPE_SECRET_KEY'    },
-  { name: 'Resend',          desc: 'Transactional and outbound email',         env: 'RESEND_API_KEY'       },
-  { name: 'Instantly',       desc: 'Outbound sequences for the Hunter agent',  env: 'INSTANTLY_API_KEY'    },
-  { name: 'Bland',           desc: 'Voice calls for the AI receptionist',      env: 'BLAND_API_KEY'        },
-  { name: 'Nylas',           desc: 'Calendar sync for booked demos',           env: 'NYLAS_API_KEY'        },
-  { name: 'Buffer',          desc: 'Publishing for the creative agent',        env: 'BUFFER_ACCESS_TOKEN'  },
+  { name: 'Stripe',    desc: 'Billing and subscription management',    env: 'STRIPE_SECRET_KEY',   wired: true  },
+  { name: 'Resend',    desc: 'Transactional and outbound email',       env: 'RESEND_API_KEY',      wired: true  },
+  { name: 'Bland',     desc: 'Voice calls for the AI receptionist',    env: 'BLAND_API_KEY',       wired: true  },
+  { name: 'Twilio',    desc: 'SMS — inbound receipts only, sending is disabled', env: 'TWILIO_ACCOUNT_SID', wired: true },
+  { name: 'HubSpot CRM', desc: 'CRM sync — not built yet',            env: 'HUBSPOT_API_KEY',     wired: false },
+  { name: 'Instantly', desc: 'Outbound sending for Hunter — not built yet', env: 'INSTANTLY_API_KEY', wired: false },
+  { name: 'Nylas',     desc: 'Calendar sync — not built yet',          env: 'NYLAS_API_KEY',       wired: false },
+  { name: 'Buffer',    desc: 'Social publishing — not built yet',      env: 'BUFFER_ACCESS_TOKEN', wired: false },
 ];
 
 export async function GET(req: Request) {
@@ -84,7 +88,11 @@ export async function GET(req: Request) {
         name: i.name,
         desc: i.desc,
         connected: false,
-        configured: Boolean(process.env[i.env]),
+        // An unwired provider reports no key, because having one changes
+        // nothing — "configured" would invite someone to go looking for the
+        // verification step that would make it work.
+        configured: i.wired ? Boolean(process.env[i.env]) : false,
+        wired: i.wired,
         verification: 'not_checked',
       })),
     });

@@ -40,6 +40,8 @@ interface Source {
   name: string;
   desc: string;
   connected: boolean;
+  /** False when no code calls this provider, so a key would change nothing. */
+  wired?: boolean;
 }
 
 function timeAgo(iso: string) {
@@ -295,7 +297,7 @@ export default function EnrichmentPage() {
         <div className="bg-surface rounded-xl border border-line/50">
           <div className="px-5 py-4 border-b border-line/50">
             <h2 className="text-white font-semibold text-sm">Data Sources</h2>
-            <p className="text-xs text-dim mt-0.5">Based on configured API keys</p>
+            <p className="text-xs text-dim mt-0.5">What this build actually calls. &quot;Not built yet&quot; means a key changes nothing.</p>
           </div>
           <div className="divide-y divide-line/40">
             {sources.map((src) => (
@@ -306,7 +308,7 @@ export default function EnrichmentPage() {
                   <p className="text-dim text-xs truncate">{src.desc}</p>
                 </div>
                 <span className={`text-xs font-medium ${src.connected ? 'text-emerald-400' : 'text-dim'}`}>
-                  {src.connected ? 'connected' : 'not configured'}
+                  {src.wired === false ? 'not built yet' : src.connected ? 'active' : 'not configured'}
                 </span>
               </div>
             ))}

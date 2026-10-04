@@ -233,11 +233,12 @@ export default function ReviewsPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-text">
-                No reviews yet. Your agents will monitor and respond automatically.
+                No reviews yet. Add a review and the agent will draft a reply.
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm text-dim">
-                As reviews come in across Google, Yelp, G2 and Capterra, they land here
-                with sentiment, themes, and a drafted reply.
+                Each review gets sentiment, themes and a drafted reply for you to post on
+                the original platform. Importing reviews automatically from Google, Yelp
+                and the rest is coming soon — for now they are added through the API.
               </p>
             </div>
           </div>

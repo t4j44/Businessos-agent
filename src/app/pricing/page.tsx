@@ -2,38 +2,56 @@
 
 import React, { useState } from 'react';
 
+// Only ship a feature name here once the thing exists.
+//
+// This list sold four agents that have never been built — Sales Agent,
+// Contract Generator, Conference Call AI and Scout are all marked "Planned" in
+// docs/AGENT_STATUS.md — plus White-label and Multi-client, for which there is
+// no code at all (there is not even a client switcher). Taking money for those
+// is the problem; the wording below says what each agent actually does today,
+// and anything unbuilt is listed separately as not included.
 const TIERS = [
   {
     name: 'Starter',
     id: 'starter',
     priceMonthly: 97,
-    features: ['Call Center Bot', 'AI Scheduler', 'Review Agent', 'BI Reporter'],
+    features: ['Call Center — records and analyses calls', 'AI Scheduler', 'Review replies (drafts)', 'Monday Brief'],
   },
   {
     name: 'Core',
     id: 'core',
     priceMonthly: 197,
-    features: ['All Starter features', 'Invoice Chase'],
+    features: ['All Starter features', 'Invoice reminders (drafts — sending coming soon)'],
   },
   {
     name: 'Growth',
     id: 'growth',
     priceMonthly: 397,
     isPopular: true,
-    features: ['All Core features', 'Hunter', 'Creative', 'Sales Agent', 'Contract Generator'],
+    features: ['All Core features', 'Hunter lead discovery', 'Outreach copy (drafts)', 'Creative content (drafts)'],
   },
   {
     name: 'Scale',
     id: 'scale',
     priceMonthly: 797,
-    features: ['All Growth features', 'Data Enrichment', 'Conference Call AI', 'Scout'],
+    features: ['All Growth features', 'CSV lead import and enrichment', 'Market, Audience and Trend intelligence'],
   },
   {
     name: 'Agency',
     id: 'agency',
     priceMonthly: 1997,
-    features: ['Everything', 'White-label', 'Multi-client', 'Priority support'],
+    features: ['Everything above', 'Priority support'],
   }
+];
+
+// Named so nobody has to guess whether they are included. Keep this honest
+// rather than deleting it: a prospect who was promised these should be able to
+// see where they stand.
+const NOT_YET_BUILT = [
+  'Automatic sending of invoice reminders, review replies, social posts and outbound email — everything above is drafted for your approval',
+  'Sales Agent, Contract Generator, Conference Call AI and Scout',
+  'White-label and multi-client accounts',
+  'CRM, calendar and social publishing integrations (HubSpot, Nylas, Buffer, Instantly)',
 ];
 
 export default function PricingPage() {
@@ -136,6 +154,23 @@ export default function PricingPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* Stated plainly rather than left for someone to discover after paying. */}
+        <div className="mt-12 rounded-xl border border-line bg-surface p-6">
+          <h2 className="text-base font-semibold text-white">Not included yet</h2>
+          <p className="mt-1 text-sm text-muted">
+            Every agent above writes drafts for you to approve. These are on the roadmap and
+            are not part of any plan today:
+          </p>
+          <ul className="mt-4 space-y-2">
+            {NOT_YET_BUILT.map((item, i) => (
+              <li key={i} className="flex items-start gap-3 text-sm text-muted">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-line-strong" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </div>

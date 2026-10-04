@@ -400,8 +400,9 @@ export default function HunterLeadsPage() {
                 No leads yet. Configure your ICP to start finding prospects.
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm text-dim">
-                Once your ideal customer profile is set, the Hunter agent sources,
-                enriches, and scores prospects here automatically.
+                Once your ideal customer profile is set, run Hunter from its page to
+                source, enrich and score prospects. It drafts the outbound copy too —
+                sending it is still up to you.
               </p>
             </div>
             {!icpOpen && (

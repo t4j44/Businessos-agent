@@ -324,8 +324,8 @@ export default function DashboardPage() {
                 Your AI team is set up and ready. Onboard your first client to see results.
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm text-dim">
-                Every call answered, review replied to, invoice chased, and brief written
-                will show up here automatically.
+                Every call answered and analysed, every review and invoice reminder
+                drafted for your review, and every Monday brief will show up here.
               </p>
             </div>
             <Link

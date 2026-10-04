@@ -33,7 +33,7 @@ export const AGENTS: AgentDefinition[] = [
   {
     agentType: 'call_center',
     name: 'Call Center',
-    description: 'Answers your phone and resolves calls 24/7',
+    description: 'Records and analyses every inbound call',
     trigger: 'event',
     eventNote: 'Runs on every inbound call',
     href: '/dashboard/calls',
@@ -49,7 +49,7 @@ export const AGENTS: AgentDefinition[] = [
   {
     agentType: 'reputation_intelligence',
     name: 'Reputation',
-    description: 'Reads new reviews and drafts replies',
+    description: 'Reads new reviews and drafts replies for you to post',
     endpoint: '/api/agents/reputation/analyze',
     trigger: 'manual',
     href: '/dashboard/reviews',
@@ -57,7 +57,7 @@ export const AGENTS: AgentDefinition[] = [
   {
     agentType: 'invoice_chase',
     name: 'Invoice Chase',
-    description: 'Follows up on every unpaid invoice',
+    description: 'Draft reminders for unpaid invoices - sending coming soon',
     endpoint: '/api/agents/invoice-chase/run',
     trigger: 'manual',
     href: '/dashboard/invoices',
@@ -65,7 +65,7 @@ export const AGENTS: AgentDefinition[] = [
   {
     agentType: 'creative',
     name: 'Creative',
-    description: 'Writes and schedules your social content',
+    description: 'Writes social content drafts for your approval',
     endpoint: '/api/agents/creative',
     trigger: 'manual',
     href: '/dashboard/content',
@@ -133,7 +133,7 @@ export const AGENTS: AgentDefinition[] = [
     // catalog registers that — 'hunter_prospect' bound to no run at all.
     agentType: 'hunter',
     name: 'Hunter',
-    description: 'Discovers local business leads, enriches them, and writes the outbound',
+    description: 'Discovers local business leads, enriches them, and drafts outbound copy',
     icon: '🗺️',
     status: 'active',
     category: 'hunter',

@@ -31,15 +31,15 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/calls',    icon: Phone,      label: 'Calls',    subtitle: 'Phone setup and call history' },
       { href: '/dashboard/receptionist', icon: MessageSquare, label: 'Receptionist', subtitle: 'Chats with site visitors' },
       { href: '/dashboard/scheduler',    icon: CalendarDays,  label: 'Scheduler',    subtitle: 'Requests and confirmations' },
-      { href: '/dashboard/reviews',  icon: Star,       label: 'Reviews',  subtitle: 'Handles your reputation' },
-      { href: '/dashboard/invoices', icon: DollarSign, label: 'Invoices', subtitle: 'Invoices and reminder drafts' },
+      { href: '/dashboard/reviews',  icon: Star,       label: 'Reviews',  subtitle: 'Drafts replies to new reviews' },
+      { href: '/dashboard/invoices', icon: DollarSign, label: 'Invoices', subtitle: 'Invoices and draft reminders' },
     ],
   },
   {
     heading: 'Grow',
     items: [
       { href: '/dashboard/hunter',  icon: Crosshair, label: 'Hunter',   subtitle: 'Finds local businesses' },
-      { href: '/dashboard/leads',   icon: Target,   label: 'Outreach', subtitle: 'Finds and emails leads' },
+      { href: '/dashboard/leads',   icon: Target,   label: 'Outreach', subtitle: 'Finds leads and drafts outreach' },
       { href: '/dashboard/content', icon: PenLine,  label: 'Content',  subtitle: 'Content drafts and approvals' },
     ],
   },

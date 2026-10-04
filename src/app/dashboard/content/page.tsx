@@ -254,7 +254,7 @@ export default function ContentPage() {
                 No content yet. Your creative agent will generate posts.
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm text-dim">
-                Drafts, scheduled posts, and their performance will all appear here
+                Drafts and the posts you have scheduled will appear here
                 once the agent starts writing.
               </p>
             </div>

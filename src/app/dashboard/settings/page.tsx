@@ -34,6 +34,8 @@ interface Integration {
   desc: string;
   connected: boolean;
   configured?: boolean;
+  /** Whether any code calls this provider. False means the key does nothing. */
+  wired?: boolean;
 }
 
 function SectionNav({ active, onChange }: { active: Section; onChange: (s: Section) => void }) {
@@ -356,7 +358,7 @@ export default function SettingsPage() {
               <div>
                 <h2 className="text-white font-semibold">Connected Integrations</h2>
                 <p className="text-dim text-xs mt-1">
-                  Status reflects which API credentials are configured on this deployment.
+                  Status reflects which providers this build actually calls, and which credentials are configured. "Not built yet" means adding a key changes nothing.
                 </p>
               </div>
               <div className="space-y-3">
@@ -368,7 +370,13 @@ export default function SettingsPage() {
                       <p className="text-dim text-xs">{intg.desc}</p>
                     </div>
                     <span className={`text-xs font-medium ${intg.connected ? 'text-emerald-400' : 'text-dim'}`}>
-                      {intg.connected ? 'Verified connection' : intg.configured ? 'Configured · verification needed' : 'Not configured'}
+                      {intg.wired === false
+                        ? 'Not built yet'
+                        : intg.connected
+                          ? 'Verified connection'
+                          : intg.configured
+                            ? 'Configured · verification needed'
+                            : 'Not configured'}
                     </span>
                   </div>
                 ))}

@@ -53,17 +53,27 @@ export async function GET(req: Request) {
     const withEmail = queue.filter((q) => q.email).length;
     const companies = new Set(leads.map((l: any) => l.company).filter(Boolean)).size;
 
-    // "Connected" means the credential is actually present in the environment,
-    // not a hardcoded status.
+    // What actually enriches a lead, and what does not.
+    //
+    // This list used to be Firecrawl, Apollo, HubSpot and Instantly, each shown
+    // green whenever its key was present — and not one of them is called by any
+    // line of code. The real pipeline is hunter/enrich: it reads the lead's
+    // website through readWebsite() and checks the domain with a DNS MX lookup.
+    // Those two need no credential, so they are always on; the rest are named
+    // honestly as unbuilt so a key cannot imply a working integration.
     const sources = [
-      { name: 'Firecrawl', desc: 'Website scraping & company context', env: 'FIRECRAWL_API_KEY' },
-      { name: 'Apollo.io', desc: 'Email & phone number lookup',        env: 'APOLLO_API_KEY'    },
-      { name: 'HubSpot',   desc: 'CRM sync for enriched contacts',     env: 'HUBSPOT_API_KEY'   },
-      { name: 'Instantly', desc: 'Outbound sending & deliverability',  env: 'INSTANTLY_API_KEY' },
-    ].map((s) => ({
+      { name: 'Website reader', desc: 'Reads each lead\'s site for contact and context (Jina Reader, no key needed)', always: true },
+      { name: 'MX verification', desc: 'Confirms the email domain can receive mail (DNS lookup)', always: true },
+      { name: 'Crawl4AI', desc: 'Browser-based scraping for JavaScript sites', env: 'CRAWL4AI_URL' },
+      { name: 'Brave Search', desc: 'Market and competitor context', env: 'BRAVE_API_KEY' },
+      { name: 'Apollo.io', desc: 'Email & phone lookup — not built yet', wired: false },
+      { name: 'HubSpot', desc: 'CRM sync — not built yet', wired: false },
+      { name: 'Instantly', desc: 'Outbound sending — not built yet', wired: false },
+    ].map((s: any) => ({
       name: s.name,
       desc: s.desc,
-      connected: !!process.env[s.env],
+      connected: s.always === true ? true : s.wired === false ? false : !!process.env[s.env],
+      wired: s.wired !== false,
     }));
 
     return NextResponse.json({

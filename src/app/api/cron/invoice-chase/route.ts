@@ -1,7 +1,20 @@
 import { supabaseAdmin } from '@/lib/supabase'
 import { cronHandler, forEachClient, callAgent, selfBaseUrl, SkipCounter } from '@/lib/cron'
 
-// GET /api/cron/invoice-chase — daily, US morning.
+// GET /api/cron/invoice-chase — NOT SCHEDULED.
+//
+// Deliberately absent from the crons in vercel.json. This job drafts reminder
+// emails into invoice_chase_drafts and nothing anywhere sends them: no code
+// reads that table, and the `sent: 0` below is a literal, not a count. Running
+// it daily produced AI spend and a rising "drafted" number while no customer
+// was ever contacted, which is worse than not running it — the owner believed
+// their invoices were being chased.
+//
+// The code is kept because the drafting works and is the basis of the real
+// thing. Before putting it back on a schedule it needs the delivery contract
+// the scheduler outbox already has (migration 036): recheck invoice state,
+// owner approval, a provider idempotency key, a receipt, and only then advance
+// chase_step. Note that nothing currently advances chase_step at all.
 //
 // Fans out to /api/agents/invoice-chase/run once per active client. That route
 // decides which invoices are chaseable (unpaid, unpaused, overdue, below the

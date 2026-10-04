@@ -5,14 +5,21 @@ import { requireSession, authErrorResponse } from '@/lib/auth-guard';
 import { serverError } from '@/lib/server-error'
 
 // The chase sequence has 5 steps, but the funnel presents Sent → 1..4 → Paid,
-// so step 5 (final notice) is folded into the "Step 4 Call" stage.
+// so step 5 (final notice) is folded into the last stage.
+//
+// The step labels say "reminder drafted", not "reminder sent". Nothing sends a
+// chase reminder — the agent writes drafts into invoice_chase_drafts and no
+// code reads that table — and nothing advances invoices.chase_step either, so
+// in practice every invoice sits in 'draft', 'sent' or 'paid' and the four step
+// stages stay empty. 'Sent' here is the invoice itself, which is only marked
+// sent against a provider receipt (migration 029), so that one is accurate.
 export const STAGES = [
   { key: 'draft', label: 'Draft — not sent' },
-  { key: 'sent', label: 'Sent' },
-  { key: 'step1', label: 'Step 1 Reminder' },
-  { key: 'step2', label: 'Step 2 SMS' },
-  { key: 'step3', label: 'Step 3 Firm Email' },
-  { key: 'step4', label: 'Step 4 Call' },
+  { key: 'sent', label: 'Invoice sent' },
+  { key: 'step1', label: 'Reminder 1 drafted' },
+  { key: 'step2', label: 'Reminder 2 drafted' },
+  { key: 'step3', label: 'Reminder 3 drafted' },
+  { key: 'step4', label: 'Final notice drafted' },
   { key: 'paid', label: 'Paid' },
 ] as const;
 
