@@ -95,12 +95,41 @@ New invoice creation stores a draft first. Only an email response with a provide
 
 Booking requests require `request_key` (UUID) or `Idempotency-Key`, with the same normalized payload on retry. Changed details under the same key return 409. Confirmation is idempotent for the same date/time/duration. Migration 036 queues notifications inside the booking transaction; API responses report queued rather than sent. A failed transaction creates neither a booking transition nor its email jobs.
 
+### Scheduled jobs
+
+Every cron in `vercel.json`. Vercel evaluates these in **UTC**; the Eastern column
+shows both halves of the year, because the UTC time is fixed and the Eastern wall
+clock moves with daylight saving (EST = UTC−5 roughly Nov–Mar, EDT = UTC−4
+roughly Mar–Nov). A job pinned to 13:00 UTC therefore lands at 08:00 for a US
+customer in January and 09:00 in July.
+
+| Path | Cron | UTC | US Eastern (EST / EDT) | maxDuration |
+|---|---|---|---|---|
+| `/api/cron/scheduler-delivery` | `*/5 * * * *` | every 5 minutes | every 5 minutes (unaffected by timezone) | 60s |
+| `/api/agents/nightwatch` | `0 6 * * *` | 06:00 daily | 01:00 / 02:00 | 300s |
+| `/api/cron/appointment-reminders` | `0 13 * * *` | 13:00 daily | 08:00 / 09:00 | 60s |
+| `/api/cron/bi-reporter` | `0 13 * * 1` | 13:00 Mondays | Mon 08:00 / 09:00 | 300s |
+| `/api/cron/reputation-scan` | `0 14 * * *` | 14:00 daily | 09:00 / 10:00 | 120s |
+
+**Vercel Pro is required** for this set: the 5-minute `scheduler-delivery`
+schedule and the 300s durations both exceed Hobby, and Hobby also caps the number
+of cron jobs. On Hobby, cron jobs are invoked once a day regardless of the
+expression, which would make booking confirmations up to 24 hours late.
+
+Two complete workers are deliberately **not** scheduled:
+
+- `/api/cron/call-analysis` — needs fair per-tenant dispatch and backoff before
+  unattended batches.
+- `/api/cron/invoice-chase` — drafts reminders that nothing sends, so running it
+  only produced AI spend and a misleading "drafted" count. See the comment at the
+  top of that route for the delivery contract it needs first.
+
 ### Scheduler delivery and recovery
 
 The Scheduler page shows booking notifications, their status and recovery actions. Owner APIs derive the tenant from the session. Browser roles cannot read the underlying queue, whose prepared bodies include private unsubscribe links.
 
 1. Configure Resend, a verified sender, postal address and canonical HTTPS app URL. Resolve missing owner contact email or suppression issues before retrying blocked jobs.
-2. Use **Process delivery** for an eligible job, or invoke `/api/cron/scheduler-delivery` with `Authorization: Bearer <CRON_SECRET>` from the staging operator environment. The worker is not yet added to a hosted schedule. Configure and verify a suitable cadence before promising unattended confirmations; the existing daily reminder job only enqueues.
+2. Use **Process delivery** for an eligible job, or invoke `/api/cron/scheduler-delivery` with `Authorization: Bearer <CRON_SECRET>` from the staging operator environment. The worker is now scheduled in `vercel.json` every 5 minutes (`*/5 * * * *`) with `maxDuration` 60s. **This schedule requires Vercel Pro:** Hobby invokes cron jobs only once a day and allows fewer of them, so on Hobby this either fails to deploy or silently runs daily, which would make booking confirmations up to 24 hours late. Confirm the plan before promising unattended confirmations. The daily reminder job only enqueues; this worker is what dispatches.
 3. The worker leases a job for two minutes, freezes the exact email before sending, and reuses `scheduler/<job-id>` on every attempt. A provider receipt must be saved before status becomes `accepted`. Accepted does not mean delivered to an inbox.
 4. Transient failures back off; expired leases can be reclaimed. The dispatcher orders work across tenants. Six attempts or 23 hours since the first provider attempt require review rather than an unsafe resend beyond Resend's 24-hour idempotency window.
 5. For an uncertain send, find its email receipt in Resend and use **Verify receipt**. The server fetches the real provider record and matches its unique marker, complete HTML, sender, subject and recipient before recording acceptance. An arbitrary receipt ID is insufficient. Jobs that never reached the provider may be retried after configuration/storage repair.
@@ -118,7 +147,7 @@ Enter values directly in local/private environment files or provider dashboards.
 | Account and persistence | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`; migrations and auth redirect settings | Key names were present locally; hosted schema, permissions and valid auth not verified |
 | AI and embeddings | `OPENROUTER_API_KEY`; sufficient budget; existing BGE-M3 index | Key name present; live model accuracy and credentials not tested |
 | Own URL | `NEXT_PUBLIC_APP_URL` using the canonical HTTPS origin | Required for billing redirects, email links and job callbacks |
-| Cron | `CRON_SECRET`; platform schedule and plan supporting job duration | Missing in the earlier configuration check; recheck privately |
+| Cron | `CRON_SECRET`; **Vercel Pro** for the 5-minute scheduler-delivery job and the 5-cron count (Hobby is daily-only and allows fewer); plan supporting the declared `maxDuration` | `CRON_SECRET` missing in the earlier configuration check; recheck privately. Plan not verified |
 | Voice | `BLAND_API_KEY`, `BLAND_WEBHOOK_SECRET`; provider-owned number in `voice_agents`, verified operator mapping, test callback and live state | Both keys absent in the earlier check; no live phone line verified |
 | Email | `RESEND_API_KEY`, verified sender domain, configured sender address, `COMPANY_POSTAL_ADDRESS`, suppression and unsubscribe configuration | Resend key name present; postal address missing in earlier check; no delivery test |
 | SMS | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, sender number and documented customer consent | Authentication token missing in earlier check |

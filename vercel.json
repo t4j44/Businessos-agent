@@ -6,6 +6,10 @@
   },
   "crons": [
     {
+      "path": "/api/cron/scheduler-delivery",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/reputation-scan",
       "schedule": "0 14 * * *"
     },
@@ -51,6 +55,9 @@
       "maxDuration": 300
     },
     "src/app/api/cron/appointment-reminders/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/cron/scheduler-delivery/route.ts": {
       "maxDuration": 60
     },
     "src/app/api/cron/invoice-chase/route.ts": {
