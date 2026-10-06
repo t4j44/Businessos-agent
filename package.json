@@ -2,6 +2,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
     "@paper-design/shaders-react": "^0.0.80",
+    "@sentry/nextjs": "^11.4.0",
     "@stripe/stripe-js": "^9.5.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.110.1",

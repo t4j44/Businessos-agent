@@ -1,4 +1,7 @@
 import type { NextConfig } from 'next';
+// In @sentry/nextjs 11.x this lives on the /config subpath, not the package
+// root — the root entry resolves to the server SDK, which does not export it.
+import { withSentryConfig } from '@sentry/nextjs/config';
 
 // ── Security headers ────────────────────────────────────────────────────────
 //
@@ -110,4 +113,26 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// ── Sentry ──────────────────────────────────────────────────────────────────
+//
+// The wrapper is what makes the instrumentation files and onRequestError work
+// at build time. It is applied unconditionally: with no DSN the SDK never
+// initialises at runtime, so a build without Sentry credentials behaves exactly
+// as it did before. CI builds that way.
+//
+// SOURCE MAP UPLOAD IS OFF. Without it, a Sentry stack trace points at minified
+// bundle positions, so an error is reported and findable but the frame is
+// `chunk-abc123.js:1:4821` rather than a file and line. Turning it on later
+// needs: a Sentry org and project slug, a SENTRY_AUTH_TOKEN with
+// project:releases scope stored as a Vercel environment variable, and
+// `sourcemaps.disable` removed. It also lengthens the build and uploads your
+// source to Sentry, which is why it is a separate, deliberate decision.
+export default withSentryConfig(nextConfig, {
+  sourcemaps: { disable: true },
+  // No build-time usage telemetry to Sentry, and no extra build log noise.
+  telemetry: false,
+  silent: true,
+  // Sentry cron monitors from vercel.json are not enabled. The SDK defaults
+  // that off and v11 does not accept the flag on this options object anyway;
+  // the schedules are recorded in docs/PILOT_RUNBOOK.md instead.
+});

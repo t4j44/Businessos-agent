@@ -154,8 +154,36 @@ Enter values directly in local/private environment files or provider dashboards.
 | Billing | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_{STARTER,CORE,GROWTH,SCALE,AGENCY}_{MONTHLY,ANNUAL,PILOT}` for each offered option | Key names present, but real price IDs and test-account reconciliation not verified |
 | Self-hosted crawler | `CRAWL4AI_URL`, `CRAWL4AI_PRIVATE_NETWORK_BLOCKED=true` only after network isolation is enforced on that worker | Worker isolation not verified; Jina is the default fallback |
 | Research and publishing | Agent-specific search/social/CRM credentials with tenant scopes | Provider integration acceptance tests still required |
+| Error monitoring | `SENTRY_DSN` (server/edge) and `NEXT_PUBLIC_SENTRY_DSN` (browser). Both optional: with neither set the SDK never initialises and the app behaves exactly as before, which is how CI runs | Wired in `src/instrumentation.ts`, `src/instrumentation-client.ts` and `src/lib/sentry.ts`. No DSN configured yet, so failures are still only in Vercel logs |
 
 The UI now says configured/verification needed when only a key is present. For voice, a live state additionally requires an account number match and a previously verified signed inbound call. That is connection evidence, not certification of voice quality.
+
+### Error monitoring
+
+`serverError()` reports every unexpected 500 to Sentry tagged with the same
+8-character reference the user was shown, so a customer quoting
+"Reference: 3f9a1c22" leads straight to the issue. `cronHandler` reports cron
+failures, which are otherwise the most invisible kind — nobody reads a cron's
+response, so a broken schedule just stops working quietly.
+
+Privacy is enforced in one place, `scrubEvent()` in `src/lib/sentry.ts`, and
+pinned by `tests/sentry-privacy.test.cjs`. `sendDefaultPii` is false and the
+scrubber then independently removes request headers, cookies, bodies and query
+strings, drops `user` and `extra` entirely, and redacts email addresses and
+phone numbers from error text. **A widget chat message cannot reach Sentry**: it
+arrives in the request body, which is deleted. There is no session replay
+anywhere — it records the DOM, which here means somebody else's customer list.
+
+Trace sampling is 0.05. Errors are always captured; sampling only applies to
+performance traces, which are not what this is for.
+
+**Source map upload is deliberately off.** Stack traces will therefore point at
+minified positions (`chunk-abc123.js:1:4821`) rather than a file and line: an
+error is still reported and findable, but the frame is not readable. Turning it
+on later needs a Sentry org slug, a project slug, a `SENTRY_AUTH_TOKEN` with the
+`project:releases` scope added to Vercel, and `sourcemaps.disable` removed from
+`withSentryConfig` in `next.config.ts`. It lengthens the build and uploads source
+to Sentry, so it is a separate decision.
 
 ## Acceptance matrix before a real customer pilot
 

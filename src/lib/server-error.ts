@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { reportError } from './sentry'
 
 // One place to turn an unexpected failure into a response.
 //
@@ -41,6 +42,9 @@ export function serverErrorPayload(err: unknown, context: string): { error: stri
   // Second argument, not interpolated: console.error renders an Error with its
   // stack, and a Supabase PostgrestError with its code and details.
   console.error(`[${context}] unexpected failure ref=${reference}`, err)
+  // And to Sentry under the same reference, so the id the user was given is
+  // searchable. A no-op when Sentry is not configured.
+  reportError(err, { scope: context, reference })
   return { error: `${GENERIC} Reference: ${reference}` }
 }
 

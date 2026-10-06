@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireCron, authErrorResponse } from './auth-guard'
 import { logAgentRun } from './log'
+import { reportError } from './sentry'
 
 // The one entry point every scheduled job runs through.
 //
@@ -128,6 +129,9 @@ export function cronHandler(job: CronJob) {
     } catch (err: any) {
       const message = err?.message || String(err)
       console.error(`[cron/${job.name}] failed:`, err)
+      // A cron failure is the most invisible kind: nobody is watching the
+      // response, so without this the schedule silently stops working.
+      reportError(err, { scope: `cron/${job.name}`, tags: { agent_type: job.agentType, cron: job.name } })
 
       await logAgentRun({
         client_id: null,
