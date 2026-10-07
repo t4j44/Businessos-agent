@@ -18,6 +18,7 @@ import { useRef, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { MeshBackdrop } from '@/components/visual/MeshBackdrop';
 import { GlassLens } from '@/components/visual/GlassLens';
+import { LegalFooter } from '@/components/LegalFooter';
 
 export default function LoginPage() {
   const cardRef = useRef<HTMLDivElement>(null);
@@ -151,9 +152,20 @@ export default function LoginPage() {
                 </svg>
                 Continue with Google
               </button>
+
+              {/* Consent has to be visible before the action it applies to, not
+                  buried in a footer below it. */}
+              <p className="mt-6 text-center text-xs text-dim">
+                By continuing, you agree to our{' '}
+                <a href="/terms" className="text-accent hover:underline">Terms</a>
+                {' '}and{' '}
+                <a href="/privacy" className="text-accent hover:underline">Privacy Policy</a>.
+              </p>
             </>
           )}
         </div>
+
+        <LegalFooter />
       </div>
     </main>
   );

@@ -19,6 +19,13 @@ const PUBLIC_PATHS = new Set([
   '/',
   '/login',
   '/pricing',
+  // Legal and support have to be reachable without an account: they are linked
+  // from marketing pages, from the login screen before anyone can sign in, and
+  // from the footer of emails sent to a client's own customers, who will never
+  // have a session here.
+  '/privacy',
+  '/terms',
+  '/support',
   '/api/health',
   '/api/health/keys',
   // The recipient of an unsubscribe link is never a signed-in user.

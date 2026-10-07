@@ -134,6 +134,7 @@ export function postalAddress(): string | null {
 export function complianceFooter(unsubscribeUrl: string): { html: string; text: string } {
   const name = companyName()
   const postal = postalAddress() ?? ''
+  const privacy = privacyUrl()
 
   const html = `
   <div style="margin-top:32px;padding-top:16px;border-top:1px solid #E4E4E7;font-size:12px;line-height:1.6;color:#71717A;">
@@ -143,7 +144,7 @@ export function complianceFooter(unsubscribeUrl: string): { html: string; text: 
     <p style="margin:0 0 6px;">${name} &middot; ${postal}</p>
     <p style="margin:0;">
       <a href="${unsubscribeUrl}" style="color:#71717A;text-decoration:underline;">Unsubscribe</a>
-      from these emails.
+      from these emails.${privacy ? ` &middot; <a href="${privacy}" style="color:#71717A;text-decoration:underline;">Privacy Policy</a>` : ''}
     </p>
   </div>`
 
@@ -151,7 +152,8 @@ export function complianceFooter(unsubscribeUrl: string): { html: string; text: 
 ---
 You are receiving this email because you are a customer of, or enquired with, ${name}.
 ${name} · ${postal}
-Unsubscribe: ${unsubscribeUrl}`
+Unsubscribe: ${unsubscribeUrl}${privacy ? `
+Privacy Policy: ${privacy}` : ''}`
 
   return { html, text }
 }
@@ -164,13 +166,14 @@ Unsubscribe: ${unsubscribeUrl}`
 export function transactionalFooter(unsubscribeUrl: string): { html: string; text: string } {
   const name = companyName()
   const postal = postalAddress() ?? ''
+  const privacy = privacyUrl()
 
   const html = `
   <div style="margin-top:32px;padding-top:16px;border-top:1px solid #E4E4E7;font-size:12px;line-height:1.6;color:#71717A;">
     <p style="margin:0 0 6px;">This is a service message about your account or booking.</p>
     <p style="margin:0 0 6px;">${name} &middot; ${postal}</p>
     <p style="margin:0;">
-      <a href="${unsubscribeUrl}" style="color:#71717A;text-decoration:underline;">Manage email preferences</a>
+      <a href="${unsubscribeUrl}" style="color:#71717A;text-decoration:underline;">Manage email preferences</a>${privacy ? ` &middot; <a href="${privacy}" style="color:#71717A;text-decoration:underline;">Privacy Policy</a>` : ''}
     </p>
   </div>`
 
@@ -178,9 +181,22 @@ export function transactionalFooter(unsubscribeUrl: string): { html: string; tex
 ---
 This is a service message about your account or booking.
 ${name} · ${postal}
-Manage email preferences: ${unsubscribeUrl}`
+Manage email preferences: ${unsubscribeUrl}${privacy ? `
+Privacy Policy: ${privacy}` : ''}`
 
   return { html, text }
+}
+
+/**
+ * Absolute URL to the privacy policy, for email footers.
+ *
+ * Returns null when NEXT_PUBLIC_APP_URL is unset rather than emitting a relative
+ * "/privacy", which would be a dead link in a mail client. The footer then omits
+ * the line instead of shipping a broken one.
+ */
+export function privacyUrl(): string | null {
+  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+  return base ? `${base}/privacy` : null
 }
 
 export function unsubscribeUrlFor(token: string): string {

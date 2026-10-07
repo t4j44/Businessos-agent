@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Settings, User, Bell, Key, Plug, Shield, Check, RefreshCw, Sparkles } from 'lucide-react';
 import { Pending, Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
+import { LegalFooter } from '@/components/LegalFooter';
 
 const SECTIONS = ['Profile', 'Brand', 'Notifications', 'Integrations', 'API Keys', 'Security'] as const;
 type Section = typeof SECTIONS[number];
@@ -20,6 +21,31 @@ const TIMEZONES = [
   'UTC', 'America/New_York', 'America/Chicago', 'America/Los_Angeles',
   'Europe/London', 'Asia/Karachi', 'Asia/Dubai', 'Asia/Singapore',
 ];
+
+/**
+ * A pre-filled deletion / export request.
+ *
+ * Carries the business id so support can find the right tenant without asking,
+ * and nothing else: no session token, no API key, no customer records. The id
+ * is not a secret — it is the tenant key the owner's own dashboard already uses
+ * — but it is the one thing that makes the request actionable.
+ */
+function deletionRequestHref(email: string, clientId: string | null, company: string): string {
+  const subject = 'Account deletion / data export request'
+  const body = [
+    'I would like to request:',
+    '',
+    '  [ ] A copy of all data held for my business (data export)',
+    '  [ ] Deletion of my account and all data held for my business',
+    '',
+    'Please tick one or both above before sending.',
+    '',
+    '--- Please leave the details below so we can find your account ---',
+    `Business: ${company || '(not set)'}`,
+    `Business ID: ${clientId || '(unknown)'}`,
+  ].join('\n')
+  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+}
 
 interface Profile {
   name: string;
@@ -109,6 +135,7 @@ export default function SettingsPage() {
   const [rescanning, setRescanning] = useState(false);
   const [rescanDone, setRescanDone] = useState(false);
   const [clientId, setClientId] = useState<string | null>(null);
+  const [supportEmail, setSupportEmail] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -125,6 +152,7 @@ export default function SettingsPage() {
       setPlanTier(json.plan_tier || 'starter');
       setWebsite(json.profile?.website || '');
       setClientId(json.client_id || null);
+      setSupportEmail(json.support_email || null);
       setError(null);
     } catch (err: any) {
       setError(err?.message || String(err));
@@ -479,12 +507,29 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              {/* Danger zone */}
+              {/* Danger zone.
+                  This used to say "contact support" with no address anywhere in
+                  the app, which is not a data-deletion route a customer can
+                  actually use. The button pre-fills the request instead. */}
               <div className="rounded-lg border border-crit/25 bg-crit/5 p-4">
                 <p className="text-sm font-semibold text-crit">Danger zone</p>
                 <p className="mt-1 text-sm text-muted">
-                  To cancel your subscription or delete your account, contact support.
+                  Ask us to close your account or send you a copy of your data. We reply to
+                  the address you email from.
                 </p>
+                {supportEmail ? (
+                  <a
+                    href={deletionRequestHref(supportEmail, clientId, profile.company)}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-crit/40 bg-transparent px-4 py-2 text-sm font-medium text-crit transition-colors hover:bg-crit/10"
+                  >
+                    Request account deletion / data export
+                  </a>
+                ) : (
+                  <p className="mt-3 text-xs text-dim">
+                    No support address is configured for this deployment
+                    (<code>SUPPORT_EMAIL</code>), so this request cannot be sent from here yet.
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -526,6 +571,8 @@ export default function SettingsPage() {
           )}
 
         </div>
+
+        <LegalFooter />
       </div>
     </div>
   );

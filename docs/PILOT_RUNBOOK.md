@@ -155,6 +155,7 @@ Enter values directly in local/private environment files or provider dashboards.
 | Self-hosted crawler | `CRAWL4AI_URL`, `CRAWL4AI_PRIVATE_NETWORK_BLOCKED=true` only after network isolation is enforced on that worker | Worker isolation not verified; Jina is the default fallback |
 | Research and publishing | Agent-specific search/social/CRM credentials with tenant scopes | Provider integration acceptance tests still required |
 | Error monitoring | `SENTRY_DSN` (server/edge) and `NEXT_PUBLIC_SENTRY_DSN` (browser). Both optional: with neither set the SDK never initialises and the app behaves exactly as before, which is how CI runs | Wired in `src/instrumentation.ts`, `src/instrumentation-client.ts` and `src/lib/sentry.ts`. No DSN configured yet, so failures are still only in Vercel logs |
+| Legal and support | `SUPPORT_EMAIL` — the address shown on /support and pre-filled by the account deletion / data export button in Settings. Optional: with it unset those surfaces say so rather than rendering a dead mailto link. `NEXT_PUBLIC_APP_URL` is also required for the privacy link in email footers to be absolute | Pages exist at /privacy, /terms and /support and render `content/legal/*.md`. All three still hold the `PASTE GENERATED POLICY HERE` placeholder, so they show "Coming soon" and are noindex |
 
 The UI now says configured/verification needed when only a key is present. For voice, a live state additionally requires an account number match and a previously verified signed inbound call. That is connection evidence, not certification of voice quality.
 
@@ -184,6 +185,37 @@ on later needs a Sentry org slug, a project slug, a `SENTRY_AUTH_TOKEN` with the
 `project:releases` scope added to Vercel, and `sourcemaps.disable` removed from
 `withSentryConfig` in `next.config.ts`. It lengthens the build and uploads source
 to Sentry, so it is a separate decision.
+
+### Legal, support and data requests
+
+`/privacy`, `/terms` and `/support` render Markdown from `content/legal/*.md`.
+While a file still contains `PASTE GENERATED POLICY HERE` — or is missing — the
+page shows "Coming soon" and is served `noindex, nofollow`, so an unwritten
+policy is never indexed as though it were the published one. An empty file is
+treated the same way: a blank privacy policy would read as "we collect nothing",
+which is a worse claim than admitting it is not written.
+
+The documents are read at build time and baked into the prerendered HTML, so
+**pasting a policy needs a redeploy to appear**. Nothing reads from disk at
+request time.
+
+Rendering uses a small Markdown converter in `src/lib/legal.ts` (headings,
+paragraphs, lists, blockquotes, rules, bold/italic/code, links) rather than a new
+dependency, and the result goes through `sanitize-html`, which was already
+installed. Raw HTML pasted into a file is escaped to visible text rather than
+executed; `javascript:` and `data:` links lose their href. `tests/legal.test.cjs`
+pins that.
+
+The three pages are in `PUBLIC_PATHS` because they are linked from the login
+screen before anyone can sign in, and from the footer of emails sent to a
+client's own customers, who never have a session here.
+
+**Data deletion and export.** Settings → Danger zone has a "Request account
+deletion / data export" button that opens a pre-filled email to `SUPPORT_EMAIL`
+containing the business name and business ID and nothing else — no session
+token, no key, no customer records. The business ID is the tenant key the owner's
+own dashboard already uses; it is what makes the request actionable. This is a
+manual process: there is no automated deletion or export endpoint yet.
 
 ## Acceptance matrix before a real customer pilot
 

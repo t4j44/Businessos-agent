@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { LegalFooter } from '@/components/LegalFooter';
 
 // Only ship a feature name here once the thing exists.
 //
@@ -172,6 +173,8 @@ export default function PricingPage() {
             ))}
           </ul>
         </div>
+
+        <LegalFooter />
       </div>
     </div>
   );

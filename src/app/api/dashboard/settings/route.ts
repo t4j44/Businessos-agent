@@ -67,6 +67,11 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       client_id,
+      // Sent to the browser so Settings can build a pre-filled mailto link.
+      // SUPPORT_EMAIL stays a server variable rather than becoming
+      // NEXT_PUBLIC_: it is only needed by a signed-in owner, so it does not
+      // belong in the public bundle where a scraper would read it.
+      support_email: process.env.SUPPORT_EMAIL?.trim() || null,
       plan_tier: client.plan_tier || 'starter',
       brand: {
         icp_summary: brand?.icp_summary || '',
